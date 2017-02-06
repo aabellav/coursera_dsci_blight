@@ -1,0 +1,35 @@
+---
+title: "Coursera WashU Dtasci Capstone Project: BLIGHT"
+output: html_notebook
+---
+
+Loading libraries
+```{r, include=FALSE}
+library(readr)
+```
+
+Setting data location, make sure the files below are available so the rest runs
+```{r}
+datadir <- "/Users/toni/Documents/ml_learning/coursera/datasci_RProject/data"
+list.files(datadir)
+```
+Loading blight violation incidents
+```{r}
+data_violations <- read_csv(paste(datadir, "detroit-blight-violations.csv", sep="/"))
+head(data_violations)
+```
+Loading calls to 311, typically complains
+```{r}
+data_311 <- read_csv(paste(datadir, "detroit-311.csv", sep="/"))
+head(data_311)
+```
+Loading criminal incidents in Detroit
+```{r}
+data_crime <- read_csv(paste(datadir, "detroit-crime.csv", sep="/"))
+head(data_crime)
+```
+
+```{r}
+data_permits <- read_tsv(paste(datadir, "detroit-demolition-permits.tsv", sep="/"))
+head(data_permits)
+```
