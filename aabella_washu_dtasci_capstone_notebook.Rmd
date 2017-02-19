@@ -1,11 +1,17 @@
 ---
 title: "Coursera WashU Dtasci Capstone Project: BLIGHT"
-output: html_notebook
+output: github_document
 ---
 
 Loading libraries
 ```{r, include=FALSE}
 library(readr)
+library(magrittr)
+library(dplyr)
+#install.packages("lucr")
+library(lucr)
+#install.packages("lubridate")
+library(lubridate)
 ```
 
 Setting data location, make sure the files below are available so the rest runs
@@ -33,3 +39,28 @@ head(data_crime)
 data_permits <- read_tsv(paste(datadir, "detroit-demolition-permits.tsv", sep="/"))
 head(data_permits)
 ```
+Data Violation exploration
+```{r}
+#converting to factors
+cols <- c("AgencyName","ViolationCode","Disposition","PaymentStatus","Void",
+          "ViolationCategory","Country")
+data_violations %<>% mutate_each_(funs(factor(.)),cols)
+#converting $$ to numeric
+cols <- c("FineAmt","AdminFee","LateFee","StateFee","CleanUpCost","JudgmentAmt")
+data_violations %<>% mutate_each_(funs(from_currency(.)),cols)
+#converting to dates
+cols <-c("TicketIssuedDT","HearingDT")
+# to use lubridate, need to figure it out -- 
+#data_violations %<>% mutate_each_(funs(from_currency(.)),cols)
+str(data_violations)
+#summary(data_violations)
+```
+
+Violations explorations:
+- How many were voided? Should we remove them?
+- Map of violations.. potential facets by types
+- Types of payment status
+- Country? Non-US? 
+
+311 calls exploration:
+- 

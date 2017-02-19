@@ -1303,8 +1303,138 @@ See spec(...) for full column specifications.</code></pre>
 </div>
 <!-- rnb-frame-end -->
 <!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+<p>Violation exploration</p>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc3RyKGRhdGFfdmlvbGF0aW9ucylcbmBgYCJ9 -->
+<pre class="r"><code>str(data_violations)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiQ2xhc3NlcyDigJh0YmxfZGbigJksIOKAmHRibOKAmSBhbmQgJ2RhdGEuZnJhbWUnOlx0MzA3ODA0IG9icy4gb2YgIDMxIHZhcmlhYmxlczpcbiAkIFRpY2tldElEICAgICAgICAgICAgIDogaW50ICAyNjI4OCAxOTgwMCAxOTgwNCAyMDIwOCAyMDIxMSAyMDYyOCAyMDYzMSAyMDYzNCAyMDg5OSAyMDkwMSAuLi5cbiAkIFRpY2tldE51bWJlciAgICAgICAgIDogY2hyICBcIjA1MDAwMDAxREFIXCIgXCIwNTAwMDAyNURBSFwiIFwiMDUwMDAwMjZEQUhcIiBcIjA1MDAwMDI3REFIXCIgLi4uXG4gJCBBZ2VuY3lOYW1lICAgICAgICAgICA6IGNociAgXCJEZXBhcnRtZW50IG9mIFB1YmxpYyBXb3Jrc1wiIFwiRGVwYXJ0bWVudCBvZiBQdWJsaWMgV29ya3NcIiBcIkRlcGFydG1lbnQgb2YgUHVibGljIFdvcmtzXCIgXCJEZXBhcnRtZW50IG9mIFB1YmxpYyBXb3Jrc1wiIC4uLlxuICQgVmlvbE5hbWUgICAgICAgICAgICAgOiBjaHIgIFwiR3JvdXAsIExMQywgR3JhbmQgSG9sZGluZ1wiIFwiSkFDS1NPTiwgUkFFQ0hFTExFXCIgXCJUQUxUT04sIENBUk9MIEFOTlwiIFwiQk9OTkVSLCBEQVJSWUwgRS5cIiAuLi5cbiAkIFZpb2xhdGlvblN0cmVldE51bWJlcjogaW50ICAyNTY2IDE5MDE0IDE4NzM1IDIwMTI1IDE3Mzk3IDE3MTUzIDE3MTUzIDE3NTE3IDE4NjEwIDE4NDk4IC4uLlxuICQgVmlvbGF0aW9uU3RyZWV0TmFtZSAgOiBjaHIgIFwiR1JBTkQgQkxWRFwiIFwiQVNIVE9OXCIgXCJTVEFIRUxJTlwiIFwiTU9OSUNBXCIgLi4uXG4gJCBNYWlsaW5nU3RyZWV0TnVtYmVyICA6IGludCAgNzQzIDIwNTAxIDE4NzM1IDI1MzM1IDE3Mzk3IDExMjAwIDExMjAwIDE3MjA5IDMwNTIxIDI1MzU5IC4uLlxuICQgTWFpbGluZ1N0cmVldE5hbWUgICAgOiBjaHIgIFwiQmVhdWJpZW4sIFN0ZS4gMjAxXCIgXCJIRVlERU5cIiBcIlNUQUhFTEkgTlwiIFwiUEVFS1NLSUxMXCIgLi4uXG4gJCBNYWlsaW5nQ2l0eSAgICAgICAgICA6IGNociAgXCJEZXRyb2l0XCIgXCJERVRST0lUXCIgXCJERVRST0lUXCIgXCJTT1VUSEZJRUxEXCIgLi4uXG4gJCBNYWlsaW5nU3RhdGUgICAgICAgICA6IGNociAgXCJNSVwiIFwiTUlcIiBcIk1JXCIgXCJNSVwiIC4uLlxuICQgTWFpbGluZ1ppcENvZGUgICAgICAgOiBjaHIgIFwiNDgyMjZcIiBcIjQ4MjE5XCIgXCI0ODIxOVwiIFwiNDgwNDNcIiAuLi5cbiAkIE5vblVzQWRkcmVzc0NvZGUgICAgIDogY2hyICBcIk4vQVwiIFwiTi9BXCIgXCJOL0FcIiBcIk4vQVwiIC4uLlxuICQgQ291bnRyeSAgICAgICAgICAgICAgOiBjaHIgIE5BIE5BIE5BIE5BIC4uLlxuICQgVGlja2V0SXNzdWVkRFQgICAgICAgOiBjaHIgIFwiMDEvMDEvMzg0NDAgMTI6MDA6MDAgQU1cIiBcIjAxLzAxLzM4MzgzIDEyOjAwOjAwIEFNXCIgXCIwMS8wMS8zODM4MyAxMjowMDowMCBBTVwiIFwiMDEvMDEvMzgzODUgMTI6MDA6MDAgQU1cIiAuLi5cbiAkIFRpY2tldElzc3VlZFRpbWUgICAgIDpDbGFzc2VzICdobXMnLCAnZGlmZnRpbWUnICBhdG9taWMgWzE6MzA3ODA0XSA0MzIwMCAzNjkwMCAzODEwMCAzODcwMCA0MDIwMCA0NTkwMCA0NTkwMCA0NzEwMCAzNTEwMCAzNjMwMCAuLi5cbiAgLi4gLi4tIGF0dHIoKiwgXCJ1bml0c1wiKT0gY2hyIFwic2Vjc1wiXG4gJCBIZWFyaW5nRFQgICAgICAgICAgICA6IGNociAgXCIwMS8wMS8zODQ3NCAxMjowMDowMCBBTVwiIFwiMDEvMDEvMzg0MjUgMTI6MDA6MDAgQU1cIiBcIjAxLzAxLzM4NDI1IDEyOjAwOjAwIEFNXCIgXCIwMS8wMS8zODQyMiAxMjowMDowMCBBTVwiIC4uLlxuICQgQ291cnRUaW1lICAgICAgICAgICAgOkNsYXNzZXMgJ2htcycsICdkaWZmdGltZScgIGF0b21pYyBbMTozMDc4MDRdIDMyNDAwIDQ4NjAwIDQ4NjAwIDQ4NjAwIDQ4NjAwIDQ4NjAwIDQ4NjAwIDQ4NjAwIDQ4NjAwIDQ4NjAwIC4uLlxuICAuLiAuLi0gYXR0cigqLCBcInVuaXRzXCIpPSBjaHIgXCJzZWNzXCJcbiAkIFZpb2xhdGlvbkNvZGUgICAgICAgIDogY2hyICBcIjIyLTItMjBcIiBcIjIyLTItMjJcIiBcIjIyLTItMjJcIiBcIjIyLTItNDVcIiAuLi5cbiAkIFZpb2xEZXNjcmlwdGlvbiAgICAgIDogY2hyICBcIkJ1cm5pbmcgc29saWQgd2FzdGUgIGluIG9wZW4gZmlyZXNcIiBcIkJ1bGsgc29saWQgd2FzdGUgZGVwb3NpdGVkIG1vcmUgdGhhbiAyNCBob3VycyBiZWZvcmUgZGVzaWduYXRlZCB0aW1lXCIgXCJCdWxrIHNvbGlkIHdhc3RlIGRlcG9zaXRlZCBtb3JlIHRoYW4gMjQgaG91cnMgYmVmb3JlIGRlc2lnbmF0ZWQgdGltZVwiIFwiVmlvbGF0aW9uIG9mIHRpbWUgbGltaXQgZm9yIGFwcHJvdmVkIGNvbnRhaW5lcnMgdG8gcmVtYWluIGF0IGN1cmJzaWRlIC0gZWFybHkgb3IgbGF0ZVwiIC4uLlxuICQgRGlzcG9zaXRpb24gICAgICAgICAgOiBjaHIgIFwiUmVzcG9uc2libGUgQnkgRGV0ZXJtaW5hdGlvblwiIFwiTm90IHJlc3BvbnNpYmxlIEJ5IERldGVybWluYXRpb25cIiBcIlJlc3BvbnNpYmxlIEJ5IERldGVybWluYXRpb25cIiBcIlJlc3BvbnNpYmxlIEJ5IERlZmF1bHRcIiAuLi5cbiAkIEZpbmVBbXQgICAgICAgICAgICAgIDogY2hyICBcIiQxNTAwLjAwXCIgXCIkMTAwLjAwXCIgXCIkMTAwLjAwXCIgXCIkMTAwLjAwXCIgLi4uXG4gJCBBZG1pbkZlZSAgICAgICAgICAgICA6IGNociAgXCIkMjAuMDBcIiBcIiQyMC4wMFwiIFwiJDIwLjAwXCIgXCIkMjAuMDBcIiAuLi5cbiAkIExhdGVGZWUgICAgICAgICAgICAgIDogY2hyICBcIiQxNTAuMDBcIiBcIiQxMC4wMFwiIFwiJDEwLjAwXCIgXCIkMTAuMDBcIiAuLi5cbiAkIFN0YXRlRmVlICAgICAgICAgICAgIDogY2hyICBcIiQxMC4wMFwiIFwiJDEwLjAwXCIgXCIkMTAuMDBcIiBcIiQxMC4wMFwiIC4uLlxuICQgQ2xlYW5VcENvc3QgICAgICAgICAgOiBjaHIgIFwiJDAuMDBcIiBcIiQwLjAwXCIgXCIkMC4wMFwiIFwiJDAuMDBcIiAuLi5cbiAkIEp1ZGdtZW50QW10ICAgICAgICAgIDogY2hyICBcIiQxNjgwLjAwXCIgXCIkMTQwLjAwXCIgXCIkMTQwLjAwXCIgXCIkMTQwLjAwXCIgLi4uXG4gJCBQYXltZW50U3RhdHVzICAgICAgICA6IGNociAgXCJQQUlEIElOIEZVTExcIiBcIk5PIFBBWU1FTlQgQVBQTElFRFwiIFwiUEFJRCBJTiBGVUxMXCIgXCJOTyBQQVlNRU5UIEFQUExJRURcIiAuLi5cbiAkIFZvaWQgICAgICAgICAgICAgICAgIDogaW50ICAwIDAgMCAwIDAgMCAwIDAgMCAwIC4uLlxuICQgVmlvbGF0aW9uQ2F0ZWdvcnkgICAgOiBpbnQgIDAgMCAwIDAgMCAwIDAgMCAwIDAgLi4uXG4gJCBWaW9sYXRpb25BZGRyZXNzICAgICA6IGNociAgXCIyNTY2IEdSQU5EIEJMVkRcXG5EZXRyb2l0LCBNSVxcbig0Mi4zNjMxODIzNzAwMDAwNiwgLTgzLjA5MTY3NjcyMDk5OTk0KVwiIFwiMTkwMTQgQVNIVE9OXFxuRGV0cm9pdCwgTUlcXG4oNDIuNDI5MzkwNzYyMDAwMDI1LCAtODMuMjIwMzkzNTc3OTk5OTcpXCIgXCIxODczNSBTVEFIRUxJTlxcbkRldHJvaXQsIE1JXFxuKDQyLjQyODcwNzQ1OTAwMDA2NiwgLTgzLjIyNzU0ODA5NTk5OTk2KVwiIFwiMjAxMjUgTU9OSUNBXFxuRGV0cm9pdCwgTUlcXG4oNDIuNDQxNjk4Mjg0MDAwMDQsIC04My4xNDUwMTgyMTU5OTk5OClcIiAuLi5cbiAkIE1haWxpbmdBZGRyZXNzICAgICAgIDogY2hyICBcIjc0MyBCZWF1YmllblxcbkRldHJvaXQsIE1JIDQ4MjI2XFxuKDQyLjMzMzczMDYzMDAwMDA1LCAtODMuMDQxODE3NTUxOTk5OTQpXCIgXCIyMDUwMSBIRVlERU5cXG5ERVRST0lULCBNSSA0ODIxOVxcbig0Mi40NDIxNzc2MzMwMDAwMywgLTgzLjI0MTgyNzE3MTk5OTk0KVwiIFwiMTg3MzUgU1RBSEVMSSBOXFxuREVUUk9JVCwgTUkgNDgyMTlcXG4oNDIuNDI4NzA3NDU5MDAwMDY2LCAtODMuMjI3NTQ4MDk1OTk5OTYpXCIgXCIyNTMzNSBQRUVLU0tJTExcXG5TT1VUSEZJRUxELCBNSSA0ODA0M1xcbig0Mi40NzUwNDk1NzEwMDAwNTYsIC04My4zMDY3MTQ4MzM5OTk5OSlcIiAuLi5cbiAtIGF0dHIoKiwgXCJwcm9ibGVtc1wiKT1DbGFzc2VzIOKAmHRibF9kZuKAmSwg4oCYdGJs4oCZIGFuZCAnZGF0YS5mcmFtZSc6XHQ4MDYgb2JzLiBvZiAgNCB2YXJpYWJsZXM6XG4gIC4uJCByb3cgICAgIDogaW50ICAyNzYxMTMgMjc2MTE0IDI3NjExNSAyNzYxMzkgMjc2MTQwIDI4MTU3MCAyODE1NzEgMjgyODU0IDI4Mjg2OSAyODMwMDEgLi4uXG4gIC4uJCBjb2wgICAgIDogY2hyICBcIk1haWxpbmdTdHJlZXROdW1iZXJcIiBcIk1haWxpbmdTdHJlZXROdW1iZXJcIiBcIk1haWxpbmdTdHJlZXROdW1iZXJcIiBcIk1haWxpbmdTdHJlZXROdW1iZXJcIiAuLi5cbiAgLi4kIGV4cGVjdGVkOiBjaHIgIFwiYW4gaW50ZWdlclwiIFwiYW4gaW50ZWdlclwiIFwiYW4gaW50ZWdlclwiIFwibm8gdHJhaWxpbmcgY2hhcmFjdGVyc1wiIC4uLlxuICAuLiQgYWN0dWFsICA6IGNociAgXCJQLk8uIEJveFwiIFwiUC5PLiBCb3hcIiBcIlAuTy4gQm94XCIgXCItMlwiIC4uLlxuIC0gYXR0cigqLCBcInNwZWNcIik9TGlzdCBvZiAyXG4gIC4uJCBjb2xzICAgOkxpc3Qgb2YgMzFcbiAgLi4gLi4kIFRpY2tldElEICAgICAgICAgICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfaW50ZWdlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIFRpY2tldE51bWJlciAgICAgICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfY2hhcmFjdGVyXCIgXCJjb2xsZWN0b3JcIlxuICAuLiAuLiQgQWdlbmN5TmFtZSAgICAgICAgICAgOiBsaXN0KClcbiAgLi4gLi4gLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyICBcImNvbGxlY3Rvcl9jaGFyYWN0ZXJcIiBcImNvbGxlY3RvclwiXG4gIC4uIC4uJCBWaW9sTmFtZSAgICAgICAgICAgICA6IGxpc3QoKVxuICAuLiAuLiAuLi0gYXR0cigqLCBcImNsYXNzXCIpPSBjaHIgIFwiY29sbGVjdG9yX2NoYXJhY3RlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIFZpb2xhdGlvblN0cmVldE51bWJlcjogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfaW50ZWdlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIFZpb2xhdGlvblN0cmVldE5hbWUgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfY2hhcmFjdGVyXCIgXCJjb2xsZWN0b3JcIlxuICAuLiAuLiQgTWFpbGluZ1N0cmVldE51bWJlciAgOiBsaXN0KClcbiAgLi4gLi4gLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyICBcImNvbGxlY3Rvcl9pbnRlZ2VyXCIgXCJjb2xsZWN0b3JcIlxuICAuLiAuLiQgTWFpbGluZ1N0cmVldE5hbWUgICAgOiBsaXN0KClcbiAgLi4gLi4gLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyICBcImNvbGxlY3Rvcl9jaGFyYWN0ZXJcIiBcImNvbGxlY3RvclwiXG4gIC4uIC4uJCBNYWlsaW5nQ2l0eSAgICAgICAgICA6IGxpc3QoKVxuICAuLiAuLiAuLi0gYXR0cigqLCBcImNsYXNzXCIpPSBjaHIgIFwiY29sbGVjdG9yX2NoYXJhY3RlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIE1haWxpbmdTdGF0ZSAgICAgICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfY2hhcmFjdGVyXCIgXCJjb2xsZWN0b3JcIlxuICAuLiAuLiQgTWFpbGluZ1ppcENvZGUgICAgICAgOiBsaXN0KClcbiAgLi4gLi4gLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyICBcImNvbGxlY3Rvcl9jaGFyYWN0ZXJcIiBcImNvbGxlY3RvclwiXG4gIC4uIC4uJCBOb25Vc0FkZHJlc3NDb2RlICAgICA6IGxpc3QoKVxuICAuLiAuLiAuLi0gYXR0cigqLCBcImNsYXNzXCIpPSBjaHIgIFwiY29sbGVjdG9yX2NoYXJhY3RlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIENvdW50cnkgICAgICAgICAgICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfY2hhcmFjdGVyXCIgXCJjb2xsZWN0b3JcIlxuICAuLiAuLiQgVGlja2V0SXNzdWVkRFQgICAgICAgOiBsaXN0KClcbiAgLi4gLi4gLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyICBcImNvbGxlY3Rvcl9jaGFyYWN0ZXJcIiBcImNvbGxlY3RvclwiXG4gIC4uIC4uJCBUaWNrZXRJc3N1ZWRUaW1lICAgICA6TGlzdCBvZiAxXG4gIC4uIC4uIC4uJCBmb3JtYXQ6IGNociBcIlwiXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfdGltZVwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIEhlYXJpbmdEVCAgICAgICAgICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfY2hhcmFjdGVyXCIgXCJjb2xsZWN0b3JcIlxuICAuLiAuLiQgQ291cnRUaW1lICAgICAgICAgICAgOkxpc3Qgb2YgMVxuICAuLiAuLiAuLiQgZm9ybWF0OiBjaHIgXCJcIlxuICAuLiAuLiAuLi0gYXR0cigqLCBcImNsYXNzXCIpPSBjaHIgIFwiY29sbGVjdG9yX3RpbWVcIiBcImNvbGxlY3RvclwiXG4gIC4uIC4uJCBWaW9sYXRpb25Db2RlICAgICAgICA6IGxpc3QoKVxuICAuLiAuLiAuLi0gYXR0cigqLCBcImNsYXNzXCIpPSBjaHIgIFwiY29sbGVjdG9yX2NoYXJhY3RlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIFZpb2xEZXNjcmlwdGlvbiAgICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfY2hhcmFjdGVyXCIgXCJjb2xsZWN0b3JcIlxuICAuLiAuLiQgRGlzcG9zaXRpb24gICAgICAgICAgOiBsaXN0KClcbiAgLi4gLi4gLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyICBcImNvbGxlY3Rvcl9jaGFyYWN0ZXJcIiBcImNvbGxlY3RvclwiXG4gIC4uIC4uJCBGaW5lQW10ICAgICAgICAgICAgICA6IGxpc3QoKVxuICAuLiAuLiAuLi0gYXR0cigqLCBcImNsYXNzXCIpPSBjaHIgIFwiY29sbGVjdG9yX2NoYXJhY3RlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIEFkbWluRmVlICAgICAgICAgICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfY2hhcmFjdGVyXCIgXCJjb2xsZWN0b3JcIlxuICAuLiAuLiQgTGF0ZUZlZSAgICAgICAgICAgICAgOiBsaXN0KClcbiAgLi4gLi4gLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyICBcImNvbGxlY3Rvcl9jaGFyYWN0ZXJcIiBcImNvbGxlY3RvclwiXG4gIC4uIC4uJCBTdGF0ZUZlZSAgICAgICAgICAgICA6IGxpc3QoKVxuICAuLiAuLiAuLi0gYXR0cigqLCBcImNsYXNzXCIpPSBjaHIgIFwiY29sbGVjdG9yX2NoYXJhY3RlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIENsZWFuVXBDb3N0ICAgICAgICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfY2hhcmFjdGVyXCIgXCJjb2xsZWN0b3JcIlxuICAuLiAuLiQgSnVkZ21lbnRBbXQgICAgICAgICAgOiBsaXN0KClcbiAgLi4gLi4gLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyICBcImNvbGxlY3Rvcl9jaGFyYWN0ZXJcIiBcImNvbGxlY3RvclwiXG4gIC4uIC4uJCBQYXltZW50U3RhdHVzICAgICAgICA6IGxpc3QoKVxuICAuLiAuLiAuLi0gYXR0cigqLCBcImNsYXNzXCIpPSBjaHIgIFwiY29sbGVjdG9yX2NoYXJhY3RlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIFZvaWQgICAgICAgICAgICAgICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfaW50ZWdlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIFZpb2xhdGlvbkNhdGVnb3J5ICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfaW50ZWdlclwiIFwiY29sbGVjdG9yXCJcbiAgLi4gLi4kIFZpb2xhdGlvbkFkZHJlc3MgICAgIDogbGlzdCgpXG4gIC4uIC4uIC4uLSBhdHRyKCosIFwiY2xhc3NcIik9IGNociAgXCJjb2xsZWN0b3JfY2hhcmFjdGVyXCIgXCJjb2xsZWN0b3JcIlxuICAuLiAuLiQgTWFpbGluZ0FkZHJlc3MgICAgICAgOiBsaXN0KClcbiAgLi4gLi4gLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyICBcImNvbGxlY3Rvcl9jaGFyYWN0ZXJcIiBcImNvbGxlY3RvclwiXG4gIC4uJCBkZWZhdWx0OiBsaXN0KClcbiAgLi4gLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyICBcImNvbGxlY3Rvcl9ndWVzc1wiIFwiY29sbGVjdG9yXCJcbiAgLi4tIGF0dHIoKiwgXCJjbGFzc1wiKT0gY2hyIFwiY29sX3NwZWNcIlxuIn0= -->
+<pre><code>Classes ‘tbl_df’, ‘tbl’ and 'data.frame':   307804 obs. of  31 variables:
+ $ TicketID             : int  26288 19800 19804 20208 20211 20628 20631 20634 20899 20901 ...
+ $ TicketNumber         : chr  &quot;05000001DAH&quot; &quot;05000025DAH&quot; &quot;05000026DAH&quot; &quot;05000027DAH&quot; ...
+ $ AgencyName           : chr  &quot;Department of Public Works&quot; &quot;Department of Public Works&quot; &quot;Department of Public Works&quot; &quot;Department of Public Works&quot; ...
+ $ ViolName             : chr  &quot;Group, LLC, Grand Holding&quot; &quot;JACKSON, RAECHELLE&quot; &quot;TALTON, CAROL ANN&quot; &quot;BONNER, DARRYL E.&quot; ...
+ $ ViolationStreetNumber: int  2566 19014 18735 20125 17397 17153 17153 17517 18610 18498 ...
+ $ ViolationStreetName  : chr  &quot;GRAND BLVD&quot; &quot;ASHTON&quot; &quot;STAHELIN&quot; &quot;MONICA&quot; ...
+ $ MailingStreetNumber  : int  743 20501 18735 25335 17397 11200 11200 17209 30521 25359 ...
+ $ MailingStreetName    : chr  &quot;Beaubien, Ste. 201&quot; &quot;HEYDEN&quot; &quot;STAHELI N&quot; &quot;PEEKSKILL&quot; ...
+ $ MailingCity          : chr  &quot;Detroit&quot; &quot;DETROIT&quot; &quot;DETROIT&quot; &quot;SOUTHFIELD&quot; ...
+ $ MailingState         : chr  &quot;MI&quot; &quot;MI&quot; &quot;MI&quot; &quot;MI&quot; ...
+ $ MailingZipCode       : chr  &quot;48226&quot; &quot;48219&quot; &quot;48219&quot; &quot;48043&quot; ...
+ $ NonUsAddressCode     : chr  &quot;N/A&quot; &quot;N/A&quot; &quot;N/A&quot; &quot;N/A&quot; ...
+ $ Country              : chr  NA NA NA NA ...
+ $ TicketIssuedDT       : chr  &quot;01/01/38440 12:00:00 AM&quot; &quot;01/01/38383 12:00:00 AM&quot; &quot;01/01/38383 12:00:00 AM&quot; &quot;01/01/38385 12:00:00 AM&quot; ...
+ $ TicketIssuedTime     :Classes 'hms', 'difftime'  atomic [1:307804] 43200 36900 38100 38700 40200 45900 45900 47100 35100 36300 ...
+  .. ..- attr(*, &quot;units&quot;)= chr &quot;secs&quot;
+ $ HearingDT            : chr  &quot;01/01/38474 12:00:00 AM&quot; &quot;01/01/38425 12:00:00 AM&quot; &quot;01/01/38425 12:00:00 AM&quot; &quot;01/01/38422 12:00:00 AM&quot; ...
+ $ CourtTime            :Classes 'hms', 'difftime'  atomic [1:307804] 32400 48600 48600 48600 48600 48600 48600 48600 48600 48600 ...
+  .. ..- attr(*, &quot;units&quot;)= chr &quot;secs&quot;
+ $ ViolationCode        : chr  &quot;22-2-20&quot; &quot;22-2-22&quot; &quot;22-2-22&quot; &quot;22-2-45&quot; ...
+ $ ViolDescription      : chr  &quot;Burning solid waste  in open fires&quot; &quot;Bulk solid waste deposited more than 24 hours before designated time&quot; &quot;Bulk solid waste deposited more than 24 hours before designated time&quot; &quot;Violation of time limit for approved containers to remain at curbside - early or late&quot; ...
+ $ Disposition          : chr  &quot;Responsible By Determination&quot; &quot;Not responsible By Determination&quot; &quot;Responsible By Determination&quot; &quot;Responsible By Default&quot; ...
+ $ FineAmt              : chr  &quot;$1500.00&quot; &quot;$100.00&quot; &quot;$100.00&quot; &quot;$100.00&quot; ...
+ $ AdminFee             : chr  &quot;$20.00&quot; &quot;$20.00&quot; &quot;$20.00&quot; &quot;$20.00&quot; ...
+ $ LateFee              : chr  &quot;$150.00&quot; &quot;$10.00&quot; &quot;$10.00&quot; &quot;$10.00&quot; ...
+ $ StateFee             : chr  &quot;$10.00&quot; &quot;$10.00&quot; &quot;$10.00&quot; &quot;$10.00&quot; ...
+ $ CleanUpCost          : chr  &quot;$0.00&quot; &quot;$0.00&quot; &quot;$0.00&quot; &quot;$0.00&quot; ...
+ $ JudgmentAmt          : chr  &quot;$1680.00&quot; &quot;$140.00&quot; &quot;$140.00&quot; &quot;$140.00&quot; ...
+ $ PaymentStatus        : chr  &quot;PAID IN FULL&quot; &quot;NO PAYMENT APPLIED&quot; &quot;PAID IN FULL&quot; &quot;NO PAYMENT APPLIED&quot; ...
+ $ Void                 : int  0 0 0 0 0 0 0 0 0 0 ...
+ $ ViolationCategory    : int  0 0 0 0 0 0 0 0 0 0 ...
+ $ ViolationAddress     : chr  &quot;2566 GRAND BLVD\nDetroit, MI\n(42.36318237000006, -83.09167672099994)&quot; &quot;19014 ASHTON\nDetroit, MI\n(42.429390762000025, -83.22039357799997)&quot; &quot;18735 STAHELIN\nDetroit, MI\n(42.428707459000066, -83.22754809599996)&quot; &quot;20125 MONICA\nDetroit, MI\n(42.44169828400004, -83.14501821599998)&quot; ...
+ $ MailingAddress       : chr  &quot;743 Beaubien\nDetroit, MI 48226\n(42.33373063000005, -83.04181755199994)&quot; &quot;20501 HEYDEN\nDETROIT, MI 48219\n(42.44217763300003, -83.24182717199994)&quot; &quot;18735 STAHELI N\nDETROIT, MI 48219\n(42.428707459000066, -83.22754809599996)&quot; &quot;25335 PEEKSKILL\nSOUTHFIELD, MI 48043\n(42.475049571000056, -83.30671483399999)&quot; ...
+ - attr(*, &quot;problems&quot;)=Classes ‘tbl_df’, ‘tbl’ and 'data.frame':    806 obs. of  4 variables:
+  ..$ row     : int  276113 276114 276115 276139 276140 281570 281571 282854 282869 283001 ...
+  ..$ col     : chr  &quot;MailingStreetNumber&quot; &quot;MailingStreetNumber&quot; &quot;MailingStreetNumber&quot; &quot;MailingStreetNumber&quot; ...
+  ..$ expected: chr  &quot;an integer&quot; &quot;an integer&quot; &quot;an integer&quot; &quot;no trailing characters&quot; ...
+  ..$ actual  : chr  &quot;P.O. Box&quot; &quot;P.O. Box&quot; &quot;P.O. Box&quot; &quot;-2&quot; ...
+ - attr(*, &quot;spec&quot;)=List of 2
+  ..$ cols   :List of 31
+  .. ..$ TicketID             : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_integer&quot; &quot;collector&quot;
+  .. ..$ TicketNumber         : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ AgencyName           : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ ViolName             : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ ViolationStreetNumber: list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_integer&quot; &quot;collector&quot;
+  .. ..$ ViolationStreetName  : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ MailingStreetNumber  : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_integer&quot; &quot;collector&quot;
+  .. ..$ MailingStreetName    : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ MailingCity          : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ MailingState         : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ MailingZipCode       : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ NonUsAddressCode     : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ Country              : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ TicketIssuedDT       : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ TicketIssuedTime     :List of 1
+  .. .. ..$ format: chr &quot;&quot;
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_time&quot; &quot;collector&quot;
+  .. ..$ HearingDT            : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ CourtTime            :List of 1
+  .. .. ..$ format: chr &quot;&quot;
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_time&quot; &quot;collector&quot;
+  .. ..$ ViolationCode        : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ ViolDescription      : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ Disposition          : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ FineAmt              : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ AdminFee             : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ LateFee              : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ StateFee             : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ CleanUpCost          : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ JudgmentAmt          : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ PaymentStatus        : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ Void                 : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_integer&quot; &quot;collector&quot;
+  .. ..$ ViolationCategory    : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_integer&quot; &quot;collector&quot;
+  .. ..$ ViolationAddress     : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  .. ..$ MailingAddress       : list()
+  .. .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_character&quot; &quot;collector&quot;
+  ..$ default: list()
+  .. ..- attr(*, &quot;class&quot;)= chr  &quot;collector_guess&quot; &quot;collector&quot;
+  ..- attr(*, &quot;class&quot;)= chr &quot;col_spec&quot;</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZGF0YV92aW9sYXRpb25zICU8PiUgYXMuZmFjdG9yKEFnZW5jeU5hbWUpXG5gYGAifQ== -->
+<pre class="r"><code>data_violations %&lt;&gt;% as.factor(AgencyName)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiRXJyb3I6IGNvdWxkIG5vdCBmaW5kIGZ1bmN0aW9uIFwiJTw+JVwiXG4ifQ== -->
+<pre><code>Error: could not find function &quot;%&lt;&gt;%&quot;</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+<p>Violations explorations: - How many were voided? Should we remove them? - Map of violations.. potential facets by types - Types of payment status - Country? Non-US?</p>
+<div id="calls-exploration" class="section level2">
+<h2>311 calls exploration:</h2>
+<!-- rnb-text-end -->
+</div>
 
-<div id="rmd-source-code">LS0tCnRpdGxlOiAiQ291cnNlcmEgV2FzaFUgRHRhc2NpIENhcHN0b25lIFByb2plY3Q6IEJMSUdIVCIKb3V0cHV0OiBodG1sX25vdGVib29rCi0tLQoKTG9hZGluZyBsaWJyYXJpZXMKYGBge3IsIGluY2x1ZGU9RkFMU0V9CmxpYnJhcnkocmVhZHIpCmBgYAoKU2V0dGluZyBkYXRhIGxvY2F0aW9uLCBtYWtlIHN1cmUgdGhlIGZpbGVzIGJlbG93IGFyZSBhdmFpbGFibGUgc28gdGhlIHJlc3QgcnVucwpgYGB7cn0KZGF0YWRpciA8LSAiL1VzZXJzL3RvbmkvRG9jdW1lbnRzL21sX2xlYXJuaW5nL2NvdXJzZXJhL2RhdGFzY2lfUlByb2plY3QvZGF0YSIKbGlzdC5maWxlcyhkYXRhZGlyKQpgYGAKTG9hZGluZyBibGlnaHQgdmlvbGF0aW9uIGluY2lkZW50cwpgYGB7cn0KZGF0YV92aW9sYXRpb25zIDwtIHJlYWRfY3N2KHBhc3RlKGRhdGFkaXIsICJkZXRyb2l0LWJsaWdodC12aW9sYXRpb25zLmNzdiIsIHNlcD0iLyIpKQpoZWFkKGRhdGFfdmlvbGF0aW9ucykKYGBgCkxvYWRpbmcgY2FsbHMgdG8gMzExLCB0eXBpY2FsbHkgY29tcGxhaW5zCmBgYHtyfQpkYXRhXzMxMSA8LSByZWFkX2NzdihwYXN0ZShkYXRhZGlyLCAiZGV0cm9pdC0zMTEuY3N2Iiwgc2VwPSIvIikpCmhlYWQoZGF0YV8zMTEpCmBgYApMb2FkaW5nIGNyaW1pbmFsIGluY2lkZW50cyBpbiBEZXRyb2l0CmBgYHtyfQpkYXRhX2NyaW1lIDwtIHJlYWRfY3N2KHBhc3RlKGRhdGFkaXIsICJkZXRyb2l0LWNyaW1lLmNzdiIsIHNlcD0iLyIpKQpoZWFkKGRhdGFfY3JpbWUpCmBgYAoKYGBge3J9CmRhdGFfcGVybWl0cyA8LSByZWFkX3RzdihwYXN0ZShkYXRhZGlyLCAiZGV0cm9pdC1kZW1vbGl0aW9uLXBlcm1pdHMudHN2Iiwgc2VwPSIvIikpCmhlYWQoZGF0YV9wZXJtaXRzKQpgYGA=</div>
+<div id="rmd-source-code">LS0tCnRpdGxlOiAiQ291cnNlcmEgV2FzaFUgRHRhc2NpIENhcHN0b25lIFByb2plY3Q6IEJMSUdIVCIKb3V0cHV0OiBodG1sX25vdGVib29rCi0tLQoKTG9hZGluZyBsaWJyYXJpZXMKYGBge3IsIGluY2x1ZGU9RkFMU0V9CmxpYnJhcnkocmVhZHIpCmBgYAoKU2V0dGluZyBkYXRhIGxvY2F0aW9uLCBtYWtlIHN1cmUgdGhlIGZpbGVzIGJlbG93IGFyZSBhdmFpbGFibGUgc28gdGhlIHJlc3QgcnVucwpgYGB7cn0KZGF0YWRpciA8LSAiL1VzZXJzL3RvbmkvRG9jdW1lbnRzL21sX2xlYXJuaW5nL2NvdXJzZXJhL2RhdGFzY2lfUlByb2plY3QvZGF0YSIKbGlzdC5maWxlcyhkYXRhZGlyKQpgYGAKTG9hZGluZyBibGlnaHQgdmlvbGF0aW9uIGluY2lkZW50cwpgYGB7cn0KZGF0YV92aW9sYXRpb25zIDwtIHJlYWRfY3N2KHBhc3RlKGRhdGFkaXIsICJkZXRyb2l0LWJsaWdodC12aW9sYXRpb25zLmNzdiIsIHNlcD0iLyIpKQpoZWFkKGRhdGFfdmlvbGF0aW9ucykKYGBgCkxvYWRpbmcgY2FsbHMgdG8gMzExLCB0eXBpY2FsbHkgY29tcGxhaW5zCmBgYHtyfQpkYXRhXzMxMSA8LSByZWFkX2NzdihwYXN0ZShkYXRhZGlyLCAiZGV0cm9pdC0zMTEuY3N2Iiwgc2VwPSIvIikpCmhlYWQoZGF0YV8zMTEpCmBgYApMb2FkaW5nIGNyaW1pbmFsIGluY2lkZW50cyBpbiBEZXRyb2l0CmBgYHtyfQpkYXRhX2NyaW1lIDwtIHJlYWRfY3N2KHBhc3RlKGRhdGFkaXIsICJkZXRyb2l0LWNyaW1lLmNzdiIsIHNlcD0iLyIpKQpoZWFkKGRhdGFfY3JpbWUpCmBgYAoKYGBge3J9CmRhdGFfcGVybWl0cyA8LSByZWFkX3RzdihwYXN0ZShkYXRhZGlyLCAiZGV0cm9pdC1kZW1vbGl0aW9uLXBlcm1pdHMudHN2Iiwgc2VwPSIvIikpCmhlYWQoZGF0YV9wZXJtaXRzKQpgYGAKVmlvbGF0aW9uIGV4cGxvcmF0aW9uCmBgYHtyfQpkYXRhX3Zpb2xhdGlvbnMgJTw+JSBhcy5mYWN0b3IoQWdlbmN5TmFtZSkKc3RyKGRhdGFfdmlvbGF0aW9ucykKYGBgCgpWaW9sYXRpb25zIGV4cGxvcmF0aW9uczoKLSBIb3cgbWFueSB3ZXJlIHZvaWRlZD8gU2hvdWxkIHdlIHJlbW92ZSB0aGVtPwotIE1hcCBvZiB2aW9sYXRpb25zLi4gcG90ZW50aWFsIGZhY2V0cyBieSB0eXBlcwotIFR5cGVzIG9mIHBheW1lbnQgc3RhdHVzCi0gQ291bnRyeT8gTm9uLVVTPyAKCjMxMSBjYWxscyBleHBsb3JhdGlvbjoKLSA=</div>
 
 
 
