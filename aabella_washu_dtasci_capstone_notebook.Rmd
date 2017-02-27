@@ -16,7 +16,8 @@ library(lubridate)
 
 Setting data location, make sure the files below are available so the rest runs
 ```{r}
-datadir <- "/Users/toni/Documents/ml_learning/coursera/datasci_RProject/data"
+#datadir <- "/Users/toni/Documents/ml_learning/coursera/datasci_RProject/data"
+datadir <- "../data"
 list.files(datadir)
 ```
 Loading blight violation incidents
@@ -39,22 +40,68 @@ head(data_crime)
 data_permits <- read_tsv(paste(datadir, "detroit-demolition-permits.tsv", sep="/"))
 head(data_permits)
 ```
+Data permits exploration
+```{r}
+#converting to factors
+cols <- c("CASE_TYPE", "CASE_DESCRIPTION", "LEGAL_USE", "BLD_PERMIT_TYPE",
+          "PERMIT_DESCRIPTION", "BLD_PERMIT_DESC", "BLD_TYPE_USE", "RESIDENTIAL",
+          "DESCRIPTION", "BLD_TYPE_CONST_COD", "BLD_ZONING_DIST", "BLD_USE_GROUP",
+          "BLD_BASEMENT", "FEE_TYPE", "CSF_CREATED_BY","CONDITION_FOR_APPROVAL")
+data_permits %<>% mutate_each_(funs(factor(.)),cols)
+
+#converting $$ to numeric
+cols <- c("PCF_AMT_PD", "PCF_AMT_DUE", "PCF_UPDATED","ESTIMATED_COST")
+data_permits %<>% mutate_each_(funs(from_currency(.)),cols)
+
+#converting to dates
+cols <-c("PERMIT_APPLIED","PERMIT_ISSUED","PERMIT_EXPIRES")
+# to use lubridate, need to figure it out -- 
+data_permits %<>% mutate_each_(funs(parse_date_time(.,orders="mdy",tz="America/Detroit")),cols)
+summary(data_permits)
+```
+Extracting building lat longs
+```{r}
+data_permits %<>%
+  #filter out permits that have no lat/long
+  filter(grepl("\\([0-9\\.\\-]+, *[0-9\\.\\-]+\\)",site_location)) %>%
+  #extracting lat longs
+  mutate(lat = sub(".*\\(([0-9\\.\\-]+),.*","\\1", site_location)) %>%
+  mutate(long = sub(".*, *([0-9\\.\\-]+).*","\\1", site_location))
+```
+
+Create a list of buildings
+```{r}
+bld_list <- data_permits %>%
+#  mutate(building_id = )
+#  select(lat, long)
+  select(PARCEL_NO, lat, long, PARCEL_SIZE) %>% 
+  group_by(PARCEL_NO) %>%
+  count(PARCEL_NO)
+bld_list
+```
+
+
 Data Violation exploration
 ```{r}
 #converting to factors
 cols <- c("AgencyName","ViolationCode","Disposition","PaymentStatus","Void",
           "ViolationCategory","Country")
 data_violations %<>% mutate_each_(funs(factor(.)),cols)
+
 #converting $$ to numeric
 cols <- c("FineAmt","AdminFee","LateFee","StateFee","CleanUpCost","JudgmentAmt")
 data_violations %<>% mutate_each_(funs(from_currency(.)),cols)
+
 #converting to dates
 cols <-c("TicketIssuedDT","HearingDT")
 # to use lubridate, need to figure it out -- 
 #data_violations %<>% mutate_each_(funs(from_currency(.)),cols)
 str(data_violations)
-#summary(data_violations)
 ```
+```{r}
+summary(data_violations)
+```
+
 
 Violations explorations:
 - How many were voided? Should we remove them?
