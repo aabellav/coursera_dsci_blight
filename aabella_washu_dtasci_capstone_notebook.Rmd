@@ -1,6 +1,9 @@
 ---
 title: "Coursera WashU Dtasci Capstone Project: BLIGHT"
-output: github_document
+always_allow_html: yes
+output:
+  md_document:
+    variant: markdown_github
 ---
 
 Loading libraries
@@ -12,11 +15,14 @@ library(dplyr)
 library(lucr)
 #install.packages("lubridate")
 library(lubridate)
+#install.packages("rbokeh")
+library(rbokeh)
+#install.packages("geosphere")
+library(geosphere)
 ```
 
 Setting data location, make sure the files below are available so the rest runs
 ```{r}
-#datadir <- "/Users/toni/Documents/ml_learning/coursera/datasci_RProject/data"
 datadir <- "../data"
 list.files(datadir)
 ```
@@ -65,20 +71,89 @@ data_permits %<>%
   #filter out permits that have no lat/long
   filter(grepl("\\([0-9\\.\\-]+, *[0-9\\.\\-]+\\)",site_location)) %>%
   #extracting lat longs
-  mutate(lat = sub(".*\\(([0-9\\.\\-]+),.*","\\1", site_location)) %>%
-  mutate(long = sub(".*, *([0-9\\.\\-]+).*","\\1", site_location))
+  mutate(lat = as.double(sub(".*\\(([0-9\\.\\-]+),.*","\\1", site_location))) %>%
+  mutate(long = as.double(sub(".*, *([0-9\\.\\-]+).*","\\1", site_location)))
 ```
 
 Create a list of buildings
 ```{r}
 bld_list <- data_permits %>%
-#  mutate(building_id = )
-#  select(lat, long)
-  select(PARCEL_NO, lat, long, PARCEL_SIZE) %>% 
+  mutate(r = sqrt(PARCEL_SIZE/pi) ) %>%
+  select(PARCEL_NO, LOT_NUMBER, PERMIT_ISSUED, PARCEL_SIZE, lat, long, r) %>%
+  arrange(PARCEL_NO, desc(PERMIT_ISSUED)) %>%
   group_by(PARCEL_NO) %>%
-  count(PARCEL_NO)
+  summarise(n_permits=n(), last_permit=first(PERMIT_ISSUED), 
+            lat=last(lat), long=last(long), r=last(r))
 bld_list
 ```
+
+Plot lat/longs to a map
+- centering to Detroit 42.3314 N, 83.0458 W
+- more about rbokeh: http://hafen.github.io/rbokeh/rd.html#gmap
+- lots of cool maps: https://snazzymaps.com 
+- Available styles are: “subtle_grayscale”, “shades_of_grey”, “blue_water”, “pale_dawn”, “blue_essence”, “apple_mapsesque”, “midnight_commander”, “light_monochrome”, “paper”, “retro”, “flat_map”, “cool_grey”
+```{r}
+p <- gmap(lat = 42.37, lng = -83.10, zoom = 11, width = 600, height = 350,
+          map_style = gmap_style("apple_mapsesque")) %>%
+  ly_points(long, lat, data = bld_list, hover = c(PARCEL_NO, r), 
+            col = 'purple', alpha = 0.1) %>%
+  x_axis(visible = FALSE) %>%
+  y_axis(visible = FALSE)
+p
+```
+Testing GeoSphere package to calculate distance between 2 lat/long coordinates
+```{r}
+#this should be around 1160ft according to Google Maps
+#https://www.google.com/maps/dir/42.3655979,-71.1040001/42.3683169,-71.1017685/@42.3668028,-71.10503,17z/data=!4m2!4m1!3e2
+m_in_ft <- 0.3048
+distGeo(c(-71.1040001,42.3655979), c(-71.1017685,42.3683169))/m_in_ft
+```
+
+Create a function to output the buildings that are within proximity of lat/lon coordinates
+```{r}
+lt <- bld_list$lat[3]
+ln <- bld_list$long[3]
+rangeft <- 1500
+bld_list %>% 
+#  mutate(dt = distGeo(c(ln,lt), c(long, lat))/m_in_ft) %>%
+  filter(!is.na(r)) %>%
+  rowwise() %>%
+  mutate(dt = distGeo(c(ln,lt),c(long,lat))/m_in_ft) %>%
+  filter(dt <= rangeft + r) %>%
+  head(10)
+
+#distGeo(c(ln,lt),c(bld_list$long,bld_list$lat))
+```
+Function to return all buildings around a particular lat long within a predefined range (by default 500m or 1640ft)
+- input data, for simplicity, should have 4 fields
+  - PARCEL_NO: assumed it's a unique identifier for building)
+  - lat: building lat coordinate
+  - long: building long coordinate
+  - r: estimated building's area radious (when area is approximated to circle)
+- the other input variables are:
+  - lt: target lat coordinate
+  - ln: target long coordinate
+  - rangeft (optional, range in feet to look buildings around target lat/long)
+  - m_in_ft (option)
+```{r}
+bld_in_range <- function(data, lt, ln, rangeft = 1640, m_in_ft = 0.3048) {
+  data %>% 
+    filter(!is.na(r)) %>%
+    rowwise() %>%
+    mutate(dist_ft = distGeo(c(ln,lt),c(long,lat))/m_in_ft) %>%
+    filter(dist_ft <= rangeft + r) %>%
+    select(PARCEL_NO, dist_ft) %>%
+    arrange(dist_ft)
+}
+
+indata <- bld_list %>% select(PARCEL_NO, lat, long, r)
+
+lt <- bld_list$lat[3]
+ln <- bld_list$long[3]
+
+bld_in_range(indata, lt, ln)
+```
+
 
 
 Data Violation exploration
