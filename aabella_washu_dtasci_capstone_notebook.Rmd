@@ -1,9 +1,8 @@
 ---
-title: "Coursera WashU Dtasci Capstone Project: BLIGHT"
+title: 'Coursera WashU Dtasci Capstone Project: BLIGHT'
 always_allow_html: yes
 output:
-  md_document:
-    variant: markdown_github
+  html_notebook: default
 ---
 
 Loading libraries
@@ -171,18 +170,35 @@ data_violations %<>% mutate_each_(funs(from_currency(.)),cols)
 cols <-c("TicketIssuedDT","HearingDT")
 # to use lubridate, need to figure it out -- 
 #data_violations %<>% mutate_each_(funs(from_currency(.)),cols)
-str(data_violations)
-```
-```{r}
 summary(data_violations)
 ```
+Getting the violation codes
+Need to categorize them
+```{r}
+violCodes <- data_violations %>% 
+  select(ViolationCode, ViolDescription) %>%
+  unique()
+```
 
+Cleaning data, generating lat/longs, 
+```{r}
+viol_list <- data_violations %>% 
+  filter(Country == "US") %>%
+  filter(grepl("\\([0-9\\.\\-]+, *[0-9\\.\\-]+\\)",ViolationAddress)) %>%
+  #extracting lat longs
+  mutate(lat = as.double(sub(".*\\(([0-9\\.\\-]+),.*","\\1", ViolationAddress))) %>%
+  mutate(long = as.double(sub(".*, *([0-9\\.\\-]+).*","\\1", ViolationAddress))) %>%
+  mutate(address_only = sub("([^\\(]+)\\([0-9\\.\\-]+,.*","\\1", ViolationAddress)) %>%
+  select(lat, long, address_only) %>%  
+  group_by(address_only) %>%
+  summarize(n(), sd(lat), sd(long))
+```
 
-Violations explorations:
+Next steps: 
+Violations explorations
 - How many were voided? Should we remove them?
 - Map of violations.. potential facets by types
 - Types of payment status
 - Country? Non-US? 
 
-311 calls exploration:
-- 
+311 calls exploration
