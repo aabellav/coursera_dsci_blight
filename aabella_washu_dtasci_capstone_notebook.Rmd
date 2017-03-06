@@ -25,26 +25,13 @@ Setting data location, make sure the files below are available so the rest runs
 datadir <- "../data"
 list.files(datadir)
 ```
-Loading blight violation incidents
-```{r}
-data_violations <- read_csv(paste(datadir, "detroit-blight-violations.csv", sep="/"))
-head(data_violations)
-```
-Loading calls to 311, typically complains
-```{r}
-data_311 <- read_csv(paste(datadir, "detroit-311.csv", sep="/"))
-head(data_311)
-```
-Loading criminal incidents in Detroit
-```{r}
-data_crime <- read_csv(paste(datadir, "detroit-crime.csv", sep="/"))
-head(data_crime)
-```
 
+Loading data permits -- mainly blight incidents
 ```{r}
 data_permits <- read_tsv(paste(datadir, "detroit-demolition-permits.tsv", sep="/"))
 head(data_permits)
 ```
+
 Data permits exploration
 ```{r}
 #converting to factors
@@ -100,6 +87,7 @@ p <- gmap(lat = 42.37, lng = -83.10, zoom = 11, width = 600, height = 350,
   y_axis(visible = FALSE)
 p
 ```
+
 Testing GeoSphere package to calculate distance between 2 lat/long coordinates
 ```{r}
 #this should be around 1160ft according to Google Maps
@@ -152,8 +140,11 @@ ln <- bld_list$long[3]
 
 bld_in_range(indata, lt, ln)
 ```
-
-
+Loading blight violation incidents
+```{r}
+data_violations <- read_csv(paste(datadir, "detroit-blight-violations.csv", sep="/"))
+head(data_violations)
+```
 
 Data Violation exploration
 ```{r}
@@ -171,7 +162,9 @@ cols <-c("TicketIssuedDT","HearingDT")
 # to use lubridate, need to figure it out -- 
 #data_violations %<>% mutate_each_(funs(from_currency(.)),cols)
 summary(data_violations)
+#dplyr::glimpse(data_violations)
 ```
+
 Getting the violation codes
 Need to categorize them
 ```{r}
@@ -180,18 +173,79 @@ violCodes <- data_violations %>%
   unique()
 ```
 
-Cleaning data, generating lat/longs, 
+Generated lat/longs and address, and cleaned data
+ 1) Detroit addresses only, 
+ 2) removed Disposition "not responsible" and "PENDING JUDGEMENT" as might not be a violation
+ Didn't filter by country as it removed most of the entries (from 300k to 13k!!)
 ```{r}
 viol_list <- data_violations %>% 
-  filter(Country == "US") %>%
+#  filter(Country == "US") %>%
   filter(grepl("\\([0-9\\.\\-]+, *[0-9\\.\\-]+\\)",ViolationAddress)) %>%
   #extracting lat longs
   mutate(lat = as.double(sub(".*\\(([0-9\\.\\-]+),.*","\\1", ViolationAddress))) %>%
   mutate(long = as.double(sub(".*, *([0-9\\.\\-]+).*","\\1", ViolationAddress))) %>%
   mutate(address_only = sub("([^\\(]+)\\([0-9\\.\\-]+,.*","\\1", ViolationAddress)) %>%
-  select(lat, long, address_only) %>%  
+  filter(grepl("Detroit",ViolationAddress)) %>%
+  filter(! grepl("Not responsible",Disposition)) %>%
+  filter(! grepl("PENDING", Disposition)) %>%
+  select(lat, long, ViolationCode, Disposition, JudgmentAmt, PaymentStatus, ViolationCategory, address_only) 
+
+head(viol_list)
+```
+
+What happens with Disposition?
+```{r}
+viol_list %>%
+  select(Disposition) %>%
+  group_by(Disposition) %>%
+  summarise(n())
+```
+
+There are about 80k unique lat/longs, some of them generate a huge amount of violations, here are the top 30 lat/longs
+```{r}
+top30viols <- viol_list %>%
+  select(lat, long) %>%
+  mutate(geocord = paste(lat,long)) %>%
+  group_by(geocord) %>%
+  summarize(lat=last(lat), long=last(long), num_viols_in_geo = n()) %>%
+  arrange(desc(num_viols_in_geo)) %>%
+  head(30)
+top30viols
+```
+
+Plotting them, we see that the top one has 13k violations and it's in the center of Detroit, probably a standard lat/long coordinate when not the actual is not available. I'm not sure about the others with over 1000 violations... 
+```{r}
+p <- gmap(lat = 42.37, lng = -83.10, zoom = 11, width = 600, height = 350,
+          map_style = gmap_style("apple_mapsesque")) %>%
+  ly_points(long, lat, data = top30viols, hover = num_viols_in_geo, 
+            col = 'red', alpha = pmin(num_viols_in_geo / 1000, 1)) %>%
+  x_axis(visible = FALSE) %>%
+  y_axis(visible = FALSE)
+p
+```
+
+```
+Are there the same number of unique addresses?
+```{r}
+viol_list %>%
+  select(address_only) %>%
   group_by(address_only) %>%
-  summarize(n(), sd(lat), sd(long))
+  summarize(num_viols_in_address = n()) %>%
+  arrange(desc(num_viols_in_address))
+```
+
+Well, it seems that there are about 85k unique addresses, and 73k unique lat/longs.. 
+
+Loading calls to 311, typically complains
+```{r}
+data_311 <- read_csv(paste(datadir, "detroit-311.csv", sep="/"))
+head(data_311)
+```
+
+Loading criminal incidents in Detroit
+```{r}
+data_crime <- read_csv(paste(datadir, "detroit-crime.csv", sep="/"))
+head(data_crime)
 ```
 
 Next steps: 
