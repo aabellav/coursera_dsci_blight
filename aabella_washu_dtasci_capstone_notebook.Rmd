@@ -18,6 +18,8 @@ library(lubridate)
 library(rbokeh)
 #install.packages("geosphere")
 library(geosphere)
+#install.packages("caret")
+library(caret)
 ```
 
 Setting data location, make sure the files below are available so the rest runs
@@ -243,8 +245,7 @@ viol_list %>%
   arrange(desc(num_viols_in_address))
 ```
 
-Well, it seems that there are about 85k unique addresses, and 73k unique lat/longs.. gotta cut the violations with more than 500 reports, they sound like noise
-
+Well, it seems that there are about 85k unique addresses, and 73k unique lat/longs. Let's see how they contrast in terms of number of violations (lat/long vs. address)
 ```{r}
 viol_list_cleaned <- viol_list %>%
   mutate(geocoord = paste(lat,long)) %>%
@@ -365,10 +366,137 @@ bld_list_all_ref <- bld_list_all %>%
   
 bld_list_all_ref
 ```
-
+See how many are bligthed
 ```{r}
 bld_list_all_ref %>%
   filter(nblighted>0) %>%
   nrow()
 ```
+Going through the blight violation records, we can find 11,492 entries that belong to a blighted building, out of a 138,367 records in total (~10%)
+```{r}
+modeling_data <- viol_list_cleaned %>%
+  group_by(geocoord) %>%
+  summarise(n_viols = n(),lat = last(lat), long = last(long))
+  
+modeling_data %<>%
+  rowwise() %>%
+  mutate(nblighted = in_blight(lat, long, indata_degrees)) 
+
+modeling_data %>%
+  filter(nblighted > 0) %>% 
+  nrow()
+```
+
+Creating dependent variable "condition" as boolean from "nblighted" (this describes the number of records blighted in the same lat/long)
+```{r}
+modeling_data %<>%
+  mutate(condition = factor(if_else(nblighted > 0, "BLIGHTED", "NOT_BLIGHTED"))) 
+
+table(modeling_data$condition)
+```
+Balancing the two classes by downsampling the number of cases of non-blight (not ideal, but helps modeling and compute time)
+```{r}
+mod_data_sampled <- modeling_data %>%
+  filter(condition == "BLIGHTED")
+
+mod_data_sampled <- modeling_data %>%
+  filter(condition == "NOT_BLIGHTED") %>% 
+  sample_n(6000) %>%
+  bind_rows(mod_data_sampled)
+
+table(mod_data_sampled$condition)
+```
+Creating a set-aside dataset for test, and a modeling set
+```{r}
+set.seed(107)
+inTest <- createDataPartition(y=mod_data_sampled$condition, p=0.1, list=FALSE)
+testSet <- mod_data_sampled[inTest,]
+modelSet <- mod_data_sampled[-inTest,]
+table(testSet$condition)
+```
+Creating a training and validation data sets for model training and validation, the training set is about 20k records
+```{r}
+set.seed(107)
+inValid <- createDataPartition(y=modelSet$condition, p=0.15, list=FALSE)
+trainSet <- mod_data_sampled[-inValid,]
+validSet <- mod_data_sampled[inValid,]
+table(trainSet$condition)
+```
+As for the validation set, it is about 3k records
+```{r}
+table(validSet$condition)
+```
+Ongoing work to plot number of blight violations for each class
+```{r}
+p <- figure(width = 600, height = 350) %>% 
+#  ly_hist(n_viols, data = trainSet, breaks = 100, freq = FALSE) 
+  ly_hist(n_viols, data = trainSet, label = "condition", freq = FALSE) 
+p
+```
+
+
+Let's train a general linear model (GLM) with 5-fold cross-validation trying to predict the bligth condition only by the number of violations reported in the coordinate ("num_viols_in_geocoord", calculated before). The performance is quite low. 
+```{r}
+# 5 fold cross-validation, 1 repetition
+ctrl <- trainControl(method = "repeatedcv",
+                     number = 5,
+                     repeats = 1,
+                     classProbs = TRUE,
+                     summaryFunction = twoClassSummary
+                     )
+
+# general linear model
+glmModel <- train(condition ~ n_viols,
+                  data = trainSet,
+                  method = "glm",
+                  trControl = ctrl,
+                  metric = "ROC"
+                  )
+glmModel
+```
+Let's check the results in the validation set
+```{r}
+glmVal <- predict(glmModel, newdata = validSet)
+confusionMatrix(glmVal, validSet$condition, positive = "BLIGHTED")
+```
+
+Let's try a decision tree
+```{r}
+# decision tree model
+dtreeModel <- train(condition ~ n_viols,
+                  data = trainSet,
+                  method = "rpart",
+                  trControl = ctrl,
+                  metric = "ROC"
+                  )
+dtreeModel
+```
+Let's check the results in the validation set
+```{r}
+dtreeVal <- predict(dtreeModel, newdata = validSet)
+confusionMatrix(dtreeVal, validSet$condition, positive = "BLIGHTED")
+```
+
+Let's try a random forest
+```{r}
+# random forest model
+rfModel <- train(condition ~ n_viols,
+                  data = trainSet,
+                  method = "rf",
+                  trControl = ctrl,
+                  metric = "ROC"
+                  )
+rfModel
+```
+Let's check the results in the validation set
+```{r}
+rfVal <- predict(rfModel, newdata = validSet)
+confusionMatrix(rfVal, validSet$condition, positive = "BLIGHTED")
+```
+Let's compare the models across cross-validation resamples
+```{r}
+resamps <- resamples(list(glm = glmModel, dtree = dtreeModel, rf = rfModel))
+summary(resamps)
+```
+
 
