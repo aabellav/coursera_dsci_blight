@@ -58,19 +58,24 @@ data_permits %<>%
   filter(grepl("\\([0-9\\.\\-]+, *[0-9\\.\\-]+\\)",site_location)) %>%
   #extracting lat longs
   mutate(lat = as.double(sub(".*\\(([0-9\\.\\-]+),.*","\\1", site_location))) %>%
-  mutate(long = as.double(sub(".*, *([0-9\\.\\-]+).*","\\1", site_location)))
+  mutate(long = as.double(sub(".*, *([0-9\\.\\-]+).*","\\1", site_location))) %>%
+  mutate(address_only = sub("([^\\(]+)\\([0-9\\.\\-]+,.*","\\1", site_location))
+
 ```
 
-Create a list of buildings
+Create a list of buildings doing some magic to remove those entries whose lat/long stdev is larger than 10e-4 (~11m). Not much gets removed actually, but it's consistent with steps below. Removed those records whose address was a lat/long (only ~40).
 ```{r}
-bld_list <- data_permits %>%
+bld_list_permit <- data_permits %>%
   mutate(r = sqrt(PARCEL_SIZE/pi) ) %>%
-  select(PARCEL_NO, LOT_NUMBER, PERMIT_ISSUED, PARCEL_SIZE, lat, long, r) %>%
-  arrange(PARCEL_NO, desc(PERMIT_ISSUED)) %>%
-  group_by(PARCEL_NO) %>%
+  select(address=address_only, PARCEL_NO, LOT_NUMBER, PERMIT_ISSUED, PARCEL_SIZE, lat, long, r) %>%
+  filter(! grepl("\\([0-9\\.\\-]+, *[0-9\\.\\-]+\\)",address)) %>%
+  arrange(address, desc(PERMIT_ISSUED)) %>%
+  group_by(address) %>%
+  mutate(sdlat=sd(lat), sdlong=sd(long)) %>%
+  filter((sdlat<10e-4 && sdlong<10e-4) || (is.na(sdlat) && is.na(sdlong))) %>%
   summarise(n_permits=n(), last_permit=first(PERMIT_ISSUED), 
-            lat=last(lat), long=last(long), r=last(r))
-bld_list
+            lat=mean(lat), long=mean(long), r=last(r))
+head(bld_list_permit)
 ```
 
 Plot lat/longs to a map
@@ -81,7 +86,7 @@ Plot lat/longs to a map
 ```{r}
 p <- gmap(lat = 42.37, lng = -83.10, zoom = 11, width = 600, height = 350,
           map_style = gmap_style("apple_mapsesque")) %>%
-  ly_points(long, lat, data = bld_list, hover = c(PARCEL_NO, r), 
+  ly_points(long, lat, data = bld_list_permit, hover = c(address, r), 
             col = 'purple', alpha = 0.1) %>%
   x_axis(visible = FALSE) %>%
   y_axis(visible = FALSE)
@@ -98,10 +103,10 @@ distGeo(c(-71.1040001,42.3655979), c(-71.1017685,42.3683169))/m_in_ft
 
 Create a function to output the buildings that are within proximity of lat/lon coordinates
 ```{r}
-lt <- bld_list$lat[3]
-ln <- bld_list$long[3]
+lt <- bld_list_permit$lat[3]
+ln <- bld_list_permit$long[3]
 rangeft <- 1500
-bld_list %>% 
+bld_list_permit %>% 
 #  mutate(dt = distGeo(c(ln,lt), c(long, lat))/m_in_ft) %>%
   filter(!is.na(r)) %>%
   rowwise() %>%
@@ -111,7 +116,7 @@ bld_list %>%
 
 #distGeo(c(ln,lt),c(bld_list$long,bld_list$lat))
 ```
-Function to return all buildings around a particular lat long within a predefined range (by default 500m or 1640ft)
+Function to return number of buildings around a particular lat long within a predefined range (by default 500m or 1640ft)
 - input data, for simplicity, should have 4 fields
   - PARCEL_NO: assumed it's a unique identifier for building)
   - lat: building lat coordinate
@@ -123,22 +128,26 @@ Function to return all buildings around a particular lat long within a predefine
   - rangeft (optional, range in feet to look buildings around target lat/long)
   - m_in_ft (option)
 ```{r}
-bld_in_range <- function(data, lt, ln, rangeft = 1640, m_in_ft = 0.3048) {
+bld_in_range <- function(lt, ln, data, rangeft = 1640, m_in_ft = 0.3048) {
   data %>% 
-    filter(!is.na(r)) %>%
+    #filter(!is.na(r)) %>%
     rowwise() %>%
     mutate(dist_ft = distGeo(c(ln,lt),c(long,lat))/m_in_ft) %>%
     filter(dist_ft <= rangeft + r) %>%
-    select(PARCEL_NO, dist_ft) %>%
-    arrange(dist_ft)
+    #select(address, dist_ft) %>%
+    #arrange(dist_ft)
+    nrow()
 }
 
-indata <- bld_list %>% select(PARCEL_NO, lat, long, r)
+indata <- bld_list_permit %>% 
+  filter(!is.na(r)) %>%
+  unique() %>%
+  select(address, lat, long, r)
 
-lt <- bld_list$lat[3]
-ln <- bld_list$long[3]
+lt <- bld_list_permit$lat[3]
+ln <- bld_list_permit$long[3]
 
-bld_in_range(indata, lt, ln)
+bld_in_range(lt, ln, indata, rangeft = 500)
 ```
 Loading blight violation incidents
 ```{r}
@@ -224,7 +233,7 @@ p <- gmap(lat = 42.37, lng = -83.10, zoom = 11, width = 600, height = 350,
 p
 ```
 
-```
+
 Are there the same number of unique addresses?
 ```{r}
 viol_list %>%
@@ -234,7 +243,47 @@ viol_list %>%
   arrange(desc(num_viols_in_address))
 ```
 
-Well, it seems that there are about 85k unique addresses, and 73k unique lat/longs.. 
+Well, it seems that there are about 85k unique addresses, and 73k unique lat/longs.. gotta cut the violations with more than 500 reports, they sound like noise
+
+```{r}
+viol_list_cleaned <- viol_list %>%
+  mutate(geocoord = paste(lat,long)) %>%
+  group_by(geocoord) %>%
+  mutate(num_viols_in_geocoord = n())
+
+viol_list_cleaned %<>% 
+  group_by(address_only) %>%
+  mutate(num_viols_in_address = n())
+
+head(viol_list_cleaned)
+```
+
+It seems that about 26k entries have different number of violations when looking by address or lat/long, so getting rid of them
+```{r}
+viol_list_cleaned %<>%
+  filter(! num_viols_in_address != num_viols_in_geocoord) %>%
+  group_by(ViolationCode, address_only) %>%
+  mutate(num_viols_by_vcode = n()) %>%
+  arrange(desc(num_viols_in_geocoord)) %>%
+  unique()
+
+head(viol_list_cleaned)
+```
+
+Getting a list of buildings, the grouping wouldn't be necessary as there is a one to one lat/long to address correspondance, but leaving it just in case. 
+```{r}
+bld_list_viol <- viol_list_cleaned %>%
+  ungroup() %>%
+  select(address=address_only, lat, long) %>%
+  group_by(address) %>%
+  mutate(sdlat=sd(lat), sdlong=sd(long)) %>%
+  filter((sdlat<10e-4 && sdlong<10e-4) || (is.na(sdlat) && is.na(sdlong))) %>%
+  summarize(lat=mean(lat), long=mean(long)) %>%
+  select(address, lat, long) %>%
+  unique()
+
+head(bld_list_viol)
+```
 
 Loading calls to 311, typically complains
 ```{r}
@@ -242,17 +291,84 @@ data_311 <- read_csv(paste(datadir, "detroit-311.csv", sep="/"))
 head(data_311)
 ```
 
+Grouping by address, it seems there are multiple lat/longs per address, removing those entries that have a lat/long STDEV larger than 10e-4 (~11m)
+```{r}
+bld_list_311 <- data_311 %>%
+  select(address, lat, long=lng) %>%
+  group_by(address) %>%
+  mutate(sdlat=sd(lat), sdlong=sd(long)) %>%
+  filter((sdlat<10e-4 && sdlong<10e-4) || (is.na(sdlat) && is.na(sdlong))) %>%
+  summarize(lat=mean(lat), long=mean(long)) %>%
+  select(address, lat, long) %>%
+  unique()
+
+head(bld_list_311)
+```
+
+
 Loading criminal incidents in Detroit
 ```{r}
 data_crime <- read_csv(paste(datadir, "detroit-crime.csv", sep="/"))
 head(data_crime)
 ```
 
-Next steps: 
-Violations explorations
-- How many were voided? Should we remove them?
-- Map of violations.. potential facets by types
-- Types of payment status
-- Country? Non-US? 
+Grouping by address, it seems there are multiple lat/longs per address, and about 1000 entries have a lat/long STDEV larger than 10e-4 (~11m distance), so I removed those
+```{r}
+bld_list_crime <- data_crime %>%
+  select(address=ADDRESS, lat=LAT, long=LON) %>%
+  group_by(address) %>%
+  mutate(sdlat=sd(lat), sdlong=sd(long)) %>%
+  filter((sdlat<10e-4 && sdlong<10e-4) || (is.na(sdlat) && is.na(sdlong))) %>%
+#  filter(!is.na(sdlat)) %>%
+#  group_by(address) %>%
+#  summarize(newsdlat=sd(lat),newsdlong=sd(long)) %>%
+#  select(newsdlat, newsdlong) %>%
+#  summarize(mean(newsdlat), mean(newsdlong))
+  summarize(lat=mean(lat), long=mean(long)) %>%
+  select(address, lat, long) %>%
+  unique()
 
-311 calls exploration
+head(bld_list_crime)
+```
+
+
+```{r}
+bld_list_all <- bld_list_viol %>%
+  bind_rows(bld_list_311) %>%
+  bind_rows(bld_list_crime) %>%
+  select(lat, long) %>%
+  unique()
+```
+
+Speeding up version by looking computing distance directly in degrees, 2*10e-4 ~ 750 feet
+0.001 lat = 608 feet, 0.0001 lat = 60.8 feet
+0.001 long = 448 feet, 0.0001 long = 44.8 feet
+```{r}
+in_blight <- function(lt, ln, data) {
+  data %>% 
+#   filter((abs(lat-lt)+abs(long-ln))<2*10e-5) %>%
+    filter(sqrt((lat-lt)^2+(long-ln)^2)<rdegr+10e-5) %>%
+    nrow()
+}
+
+#in_blight(lt, ln, indata)
+#bld_in_range(lt, ln, indata)
+#in_blight(lt, ln)
+indata_degrees <- indata %>%
+  mutate(rdegr = 0.0001/60.8 * r)
+
+bld_list_all_ref <- bld_list_all %>%
+#  head(100) %>%
+  rowwise() %>%
+  mutate(nblighted = in_blight(lat, long, indata_degrees))
+#  mutate(nblighted = in_blight(lat, long))
+  
+bld_list_all_ref
+```
+
+```{r}
+bld_list_all_ref %>%
+  filter(nblighted>0) %>%
+  nrow()
+```
+
