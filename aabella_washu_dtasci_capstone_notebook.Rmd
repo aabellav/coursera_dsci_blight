@@ -273,12 +273,60 @@ viol_list_cleaned %<>%
 
 head(viol_list_cleaned)
 ```
+Looking at violation codes, it seems there is some common ones, taking the top 20
+```{r}
+violCodes <- viol_list_cleaned %>% 
+#  mutate(ViolationCode = sub("^([0-9]+-[0-9]+)-.*$","\\1",ViolationCode)) %>%
+  group_by(ViolationCode) %>%
+  tally(sort=TRUE) 
+
+violCodes
+```
+Manually categorized 
+```{r}
+violCodes_manual_categorization <-
+  read_csv("violCodes_manual_categorization.csv")
+
+violCodes_manual_categorization %<>%
+  mutate(ViolGroup=as.factor(ViolGroup),
+         ViolationCode=as.factor(ViolationCode))
+
+violCodes_manual_categorization
+```
+Adding a grouping factor for violation categories, ViolGroup
+```{r}
+viol_list_cleaned %<>% 
+  left_join(violCodes_manual_categorization,by="ViolationCode")
+
+#Some codes had no description, to prevent to NAs, grouping them to other
+viol_list_cleaned[which(is.na(viol_list_cleaned$ViolGroup)),]$ViolGroup <- "other"
+
+#viol_list_cleaned %<>%
+#  mutate(ViolGroup = ifelse(is.na(ViolGroup),"other",ViolGroup))
+
+head(viol_list_cleaned)
+```
+
+
+Expand ViolGroup counts as separate features
+```{r}
+violcodes_counts <- viol_list_cleaned %>%
+  select(address=address_only, lat, long, ViolGroup, Disposition, 
+         JudgmentAmt, PaymentStatus) %>%
+  group_by(address, ViolGroup) %>%
+  summarize(num_viol_by_code = n()) %>%
+  ungroup() %>%
+  spread(ViolGroup, num_viol_by_code, fill = 0)
+
+head(violcodes_counts)
+```
 
 Getting a list of buildings, the grouping wouldn't be necessary as there is a one to one lat/long to address correspondance, but leaving it just in case. 
 ```{r}
 bld_list_viol <- viol_list_cleaned %>%
   select(address=address_only, lat, long, ViolationCode, Disposition, 
          JudgmentAmt, PaymentStatus) %>%
+  group_by(address, ViolationCode) %>%
   group_by(address, Disposition) %>%
   mutate(num_disposition = n()) %>% 
   group_by(address) %>%
@@ -291,13 +339,18 @@ bld_list_viol <- viol_list_cleaned %>%
   summarise(lat=median(lat), long=median(long), num_viols = last(num_viols), 
             num_responsible = last(num_disposition), max_amt =last(max_amt)) %>%
   unique() 
-#  ungroup() %>%
-#  group_by(address) %>%
-#  rowwise() %>%
-#  mutate(num_responsible = ifelse(grepl("^Responsible", Disposition)>0,num_disposition,0)) %>%
 
 head(bld_list_viol)
 ```
+Adding the violation code counts
+```{r}
+bld_list_viol %<>%
+  left_join(violcodes_counts, by="address")
+
+colnames(bld_list_viol) <- make.names(colnames(bld_list_viol))
+head(bld_list_viol)
+```
+
 
 Loading calls to 311, typically complains
 ```{r}
@@ -317,10 +370,23 @@ summary(data_311)
 ```
 There are 23 types of 311 issues, we could extract counts for each
 ```{r}
-data_311 %>%
+types311 <- data_311 %>%
   group_by(issue_type) %>%
   summarise(num_311type = n()) %>%
   arrange(desc(num_311type))
+types311
+```
+
+Generating features for each issue type as a count per address
+```{r}
+type311counts <- data_311 %>%
+  select(address, issue_type) %>%
+  group_by(address, issue_type) %>%
+  summarize(num_type311 = n()) %>%
+  ungroup() %>%
+  spread(issue_type, num_type311, fill = 0) 
+
+head(type311counts)
 ```
 
 Most tickets are either archived or closed, probably there is no discrimination around that
@@ -367,6 +433,15 @@ bld_list_311 %>%
   tally(sort=TRUE)
 ```
 
+Adding the 311 issue type counts
+```{r}
+bld_list_311 %<>%
+  left_join(type311counts, by="address")
+
+colnames(bld_list_311) <- make.names(colnames(bld_list_311))
+head(bld_list_311)
+```
+
 Loading criminal incidents in Detroit
 ```{r}
 data_crime <- read_csv(paste(datadir, "detroit-crime.csv", sep="/"))
@@ -384,9 +459,11 @@ summary(data_crime)
 ```
 There are 50 categories of crimes, could be added as counts to the features
 ```{r}
-data_crime %>%
+crime_categories <- data_crime %>%
   group_by(CATEGORY) %>%
   tally(sort=TRUE)
+
+crime_categories
 ```
 
 Seems that crime is spread evenly, except for districts 3 and 5
@@ -410,7 +487,29 @@ bld_list_crime <- data_crime %>%
 
 head(bld_list_crime)
 ```
-Let's join all lat/longs and reduce their precision to 4 digits (~11m accuracy)
+
+Generating features for each issue type as a count per address
+```{r}
+crime_category_counts <- data_crime %>%
+  select(address=ADDRESS, CATEGORY) %>%
+  group_by(address, CATEGORY) %>%
+  summarize(num_category = n()) %>%
+  ungroup() %>%
+  spread(CATEGORY, num_category, fill = 0) 
+
+head(crime_category_counts)
+```
+
+Adding the 311 issue type counts
+```{r}
+bld_list_crime %<>%
+  left_join(crime_category_counts, by="address")
+
+colnames(bld_list_crime) <- make.names(colnames(bld_list_crime))
+head(bld_list_crime)
+```
+
+Let's join all lat/longs and reduce their precision to 4 digits (~11m accuracy) REF: https://en.wikipedia.org/wiki/Decimal_degrees#Precision
 ```{r}
 bld_list_coord <- bld_list_311 %>%
   select(lat, long) %>%
@@ -422,6 +521,16 @@ bld_list_coord <- bld_list_311 %>%
   
 bld_list_coord
 ```
+```{r}
+lt <- 42.4876
+lg <- -82.8972
+e <- 0.001
+
+bld_list_coord %>%
+  filter(abs(lat-lt)<e)
+```
+
+
 Let's reduce the precision to 4 decimal points (~11m in the equator)
 ```{r}
 bld_list_311 %<>%
@@ -443,32 +552,60 @@ bld_list_viol %<>%
   arrange(desc(lat), desc(long))
 ```
 
-Direct join
+Direct join by lat/long coordinates at 4 digit precision (~11m)
 ```{r}
+### NOT doing geo_join, it's too slow!
 #bld_list_crime_311_geosmart <- bld_list_crime %>% 
 #  head(100) %>%
 #  geo_join(bld_list_311, by=c("lat", "long"),  max_dist=0.1, unit="km", mode="inner")
 
 bld_list_crime_311_viol <- bld_list_crime %>%
   full_join(bld_list_311, by = "coord") %>%
-#  select(-address.x, -address.y) %>% 
-  full_join(bld_list_viol, by = "coord") %>%
-  select(coord, num_crime, num_311, max_rating, min_rating, diff_rating, num_viols, num_responsible, max_amt)
-```
-
-Taking care of NA's, doing some dummy imputation
-```{r}
-cols <- c("num_crime", "num_311", "num_viols", "num_responsible")
-bld_list_crime_311_viol %<>% mutate_each_(funs(ifelse(is.na(.),0,.)),cols)
-
-cols <- c("max_rating", "min_rating", "diff_rating", "max_amt")
-bld_list_crime_311_viol %<>% mutate_each_(funs(ifelse(is.na(.),-1,.)),cols)
+  full_join(bld_list_viol, by = "coord") %>% 
+  select(-address.x, -lat.x, -long.x, -address.y, -lat.y, -long.y, 
+       -address, -lat, -long)
 
 bld_list_crime_311_viol %<>% separate(coord, c("lat","long"), sep=" ", remove=FALSE) %>%
   mutate(lat = as.double(lat), long = as.double(long))
 
 bld_list_crime_311_viol %<>% filter(! is.na(lat))
 ```
+
+Adding surrounding statistics, 0.001 ~ 111m
+```{r}
+bld_list_crime_311_viol %<>% 
+  mutate(coord_neigh = paste(round(lat,digits=3),round(lat,digits=3))) %>%
+  group_by(coord_neigh) %>%
+  mutate(
+    num_crime_neigh = sum(num_crime),
+    num_311_neigh = sum(num_311),
+    max_rating_neigh = max(max_rating),
+    min_rating_neigh = min(min_rating),
+    num_viols_neigh = sum(num_viols),
+    num_respons_neigh = sum(num_responsible),
+    avg_max_amt_neigh = mean(max_amt)
+  ) %>%
+  ungroup()
+```
+
+
+Taking care of NA's, doing some dummy imputation
+```{r}
+codesviol <- make.names(unlist(lapply(unique(violCodes_manual_categorization$ViolGroup), as.character)))
+codes311 <- make.names(unlist(lapply(types311$issue_type, as.character)))
+codescrime <- make.names(unlist(lapply(crime_categories$CATEGORY, as.character)))
+
+cols <- c("num_crime", "num_311", "num_viols", "num_responsible",
+          "num_crime_neigh", "num_311_neigh", "num_viols_neigh", "num_respons_neigh")
+cols <- c(cols, codesviol, codes311, codescrime)
+bld_list_crime_311_viol %<>% 
+  mutate_each_(funs(ifelse(is.na(.),0,.)),cols)
+
+cols <- c("max_rating", "min_rating", "diff_rating", "max_amt", 
+          "max_rating_neigh", "min_rating_neigh", "avg_max_amt_neigh")
+bld_list_crime_311_viol %<>% mutate_each_(funs(ifelse(is.na(.),-1,.)),cols)
+```
+
 
 Speeding up version by looking computing distance directly in degrees, 0.0001 ~ 11m ~ 37ft
 ```{r}
@@ -500,7 +637,7 @@ Creating dependent variable "condition" as boolean from "nblighted" (this descri
 ```{r}
 modeling_data %<>%
   mutate(condition = factor(if_else(nblighted > 0, "BLIGHTED", "NOT_BLIGHTED"))) %>%
-  select(-coord, -lat, -long, -nblighted)
+  select(-coord, -lat, -long, -nblighted, -coord_neigh)
 
 table(modeling_data$condition)
 ```
@@ -516,6 +653,7 @@ mod_data_sampled <- modeling_data %>%
 
 table(mod_data_sampled$condition)
 ```
+
 Creating a set-aside dataset for test, and a modeling set
 ```{r}
 set.seed(107)
@@ -539,11 +677,11 @@ table(validSet$condition)
 Plotting the histogram of number of violations for both blighted and not blighted buildings, we see some difference that might contribute to discriminate the 2 classes
 ```{r}
 p <- figure(width = 600, height = 350) %>% 
-  ly_hist(num_viols, data = trainSet[which(trainSet$condition == "NOT_BLIGHTED"),], color = "blue", alpha = 0.25, freq = F, lname = "NOT BLIGHTED") %>%
-  ly_hist(num_viols, data = trainSet[which(trainSet$condition == "BLIGHTED"),], color = "red", alpha = 0.25, freq = F, lname = "BLIGHTED")
+  ly_hist(num_viols, data = trainSet[which(trainSet$condition == "NOT_BLIGHTED"),], color = "blue", alpha = 0.25, freq = F, breaks = 25) %>%
+  ly_hist(num_viols, data = trainSet[which(trainSet$condition == "BLIGHTED"),], color = "red", alpha = 0.25, freq = F, breaks = 25) 
 p
 ```
-Let's train a general linear model (GLM) with 5-fold cross-validation trying to predict the bligth condition only by the number of violations reported in the coordinate ("num_viols_in_geocoord", calculated before). The performance is quite low. 
+Let's train a general linear model (GLM) with 5-fold cross-validation trying to predict the bligth condition only by the number of violations reported in the coordinate, which yields 67.6% AUC on the ROC, 76% true positive, and 43% true negative. 
 ```{r}
 # 5 fold cross-validation, 1 repetition
 ctrl <- trainControl(method = "repeatedcv",
@@ -568,7 +706,7 @@ glmVal <- predict(glmModel, newdata = validSet)
 confusionMatrix(glmVal, validSet$condition, positive = "BLIGHTED")
 ```
 
-Let's try a decision tree
+A decision tree has a similar performance, 67% AUC on ROC for cross-validation
 ```{r}
 # decision tree model
 dtreeModel <- train(condition ~ num_viols,
@@ -586,7 +724,7 @@ dtreeVal <- predict(dtreeModel, newdata = validSet)
 confusionMatrix(dtreeVal, validSet$condition, positive = "BLIGHTED")
 ```
 
-Let's try a random forest
+A random forest doesn't yield significantly different results, with an 66.3% AUC on ROC
 ```{r}
 # random forest model
 rfModel <- train(condition ~ num_viols,
@@ -608,13 +746,13 @@ Let's check the results in the validation set
 rfVal <- predict(rfModel, newdata = validSet)
 confusionMatrix(rfVal, validSet$condition, positive = "BLIGHTED")
 ```
-Let's compare the models across cross-validation resamples
+Comparing the models across cross-validation resamples, we see a similar performance in terms of ROC. 
 ```{r}
 resamps <- resamples(list(glm = glmModel, dtree = dtreeModel, rf = rfModel))
 summary(resamps)
 ```
 
-Let's add more features in the dtree
+The fact that the random forest performance in training and validation sets was similar, eludes that the model in not complex enough. Let's add all the extracted features above in the dtree (about 101).
 ```{r}
 # decision tree model
 dtreeModel2 <- train(condition ~ .,
@@ -627,10 +765,10 @@ dtreeModel2 <- train(condition ~ .,
 dtreeModel2
 ```
 
-Let's check the results in the validation set
+The results in cross-validation didn't show a significant improvement. The validation set also doesn't show major differences.
 ```{r}
 dtree2Val <- predict(dtreeModel2, newdata = validSet)
-confusionMatrix(rfVal, validSet$condition, positive = "BLIGHTED")
+confusionMatrix(dtree2Val, validSet$condition, positive = "BLIGHTED")
 ```
 Let's try a random forest with all the variables
 ```{r}
@@ -645,14 +783,57 @@ rfModel2
 ```
 ```{r}
 rf2Val <- predict(rfModel2, newdata = validSet)
-confusionMatrix(rfVal, validSet$condition, positive = "BLIGHTED")
+confusionMatrix(rf2Val, validSet$condition, positive = "BLIGHTED")
 ```
 ```{r}
 rf2varImp <- varImp(rfModel2, scale = FALSE)
-plot(rf2varImp, top=8)
+plot(rf2varImp, top=28)
+```
+```{r}
+trainSet2 <- trainSet %>% select(max_amt, num_viols, num_responsible, num_crime, X9.1.36.a., X22.2.88, min_rating, X9.1.81.a., diff_rating, num_311, max_rating, X22.2.88.b., X9.1.43.a.....Dwelling., condition)
+# random forest model
+rfModel3 <- train(condition ~ .,
+                  data = trainSet2,
+                  method = "rf",
+                  trControl = ctrl,
+                  metric = "ROC"
+                  )
+rfModel3
 ```
 
+```{r}
+table(trainSet$num_crime>0)
+table(trainSet$num_viols>0)
+table(trainSet$num_311>0)
+table(bld_list_crime_311_viol$num_311>0)
+#bld_list_crime_311_viol %<>% mutate(num_viols = as.integer(num_viols), num_crime = as.integer(num_crime), num_311 = as.integer(num_311))
+bld_list_crime_311_viol %>% filter(num_viols>-1) %>% filter(num_crime>0) %>% filter(num_311>-1)
+summary(bld_list_crime_311_viol)
+```
+Looking at the rate of blight by violation code, "X9.1.45" and "X9.1.43.a.....Dwelling." (over 75%). The former being "Failure of owner to comply with an emergency or imminent danger order of one- or two-family dwelling or building" and "Failure of owner of one- or two-family dwelling to comply with an emergency or imminent danger order concerining an unsafe or unsanitary structure or unlawful occupancy"
+```{r}
+count_violtype_blighted <- trainSet %>% 
+  filter(condition == "BLIGHTED") %>%
+  select(starts_with("X")) %>%
+  colSums()
+
+count_violtype_all <- trainSet %>% 
+  select(starts_with("X")) %>%
+  colSums()
+
+blightrate_by_violtype <- count_violtype_blighted / count_violtype_all
+blightrate_by_violtype
+```
+
+
 Next steps:
-- why 311 doesn't have much effect? Maybe not enough representation, how many 311 records are in modeling data? And others?
-- investigate crime/311/viol type counts as features (like bagofwords)
+- why 311 doesn't have much effect? Maybe not enough representation? 
+  - How many 311 records are in modeling data? It's the smallest set (13k records)
+  - And how about violations & crime? Violations had the most records, 73k, crime 56k
+  - Train ensuring the overlap data (inner join), is in the model set
+- investigate crime/311/viol type counts as features (like bag of words)
 - 311: investigate effect of time (e.g., between created and closed, or # tx / unit of time)
+
+Other data:
+- MLS / Zillow (last time sold, price, # sold houses around)
+- Detroit Parcel data
