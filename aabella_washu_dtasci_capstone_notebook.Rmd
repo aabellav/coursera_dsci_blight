@@ -10,33 +10,43 @@ Loading libraries
 library(readr)
 library(magrittr)
 library(tidyr)
+library(plyr)
 library(dplyr)
 library(fuzzyjoin)
-#install.packages("lucr")
 library(lucr)
-#install.packages("lubridate")
 library(lubridate)
-#install.packages("rbokeh")
 library(rbokeh)
-#install.packages("geosphere")
 library(geosphere)
-#install.packages("caret")
 library(caret)
+#library(Matrix)
+library(xgboost)
+library(doParallel)
+n.cores <- detectCores()
+registerDoParallel(n.cores)
+n.cores <- getDoParWorkers()
+paste(n.cores, 'workers utilized')
 ```
 
-Setting data location, make sure the files below are available so the rest runs
+Setting data location, make sure the files below are available so the rest runs.
 ```{r}
 datadir <- "../data"
 list.files(datadir)
 ```
 
-Loading data permits -- mainly blight incidents
-```{r}
+Loading all data
+```{r, include=FALSE}
 data_permits <- read_tsv(paste(datadir, "detroit-demolition-permits.tsv", sep="/"))
-head(data_permits)
+data_violations <- read_csv(paste(datadir, "detroit-blight-violations.csv", sep="/"))
+data_311 <- read_csv(paste(datadir, "detroit-311.csv", sep="/"))
+data_crime <- read_csv(paste(datadir, "detroit-crime.csv", sep="/"))
 ```
 
 Data permits exploration
+```{r}
+head(data_permits)
+```
+
+First converting data fields to the right types
 ```{r}
 #converting to factors
 cols <- c("CASE_TYPE", "CASE_DESCRIPTION", "LEGAL_USE", "BLD_PERMIT_TYPE",
@@ -51,7 +61,6 @@ data_permits %<>% mutate_each_(funs(from_currency(.)),cols)
 
 #converting to dates
 cols <-c("PERMIT_APPLIED","PERMIT_ISSUED","PERMIT_EXPIRES")
-# to use lubridate, need to figure it out -- 
 data_permits %<>% mutate_each_(funs(parse_date_time(.,orders="mdy",tz="America/Detroit")),cols)
 summary(data_permits)
 ```
@@ -64,7 +73,6 @@ data_permits %<>%
   mutate(lat = as.double(sub(".*\\(([0-9\\.\\-]+),.*","\\1", site_location))) %>%
   mutate(long = as.double(sub(".*, *([0-9\\.\\-]+).*","\\1", site_location))) %>%
   mutate(address_only = sub("([^\\(]+)\\([0-9\\.\\-]+,.*","\\1", site_location))
-
 ```
 
 Create a list of buildings doing some magic to remove those entries whose lat/long stdev is larger than 10e-4 (~11m). Not much gets removed actually, but it's consistent with steps below. Removed those records whose address was a lat/long (only ~40).
@@ -85,44 +93,6 @@ bld_list_permit <- data_permits %>%
 head(bld_list_permit)
 ```
 
-Plot lat/longs to a map
-- centering to Detroit 42.3314 N, 83.0458 W
-- more about rbokeh: http://hafen.github.io/rbokeh/rd.html#gmap
-- lots of cool maps: https://snazzymaps.com 
-- Available styles are: “subtle_grayscale”, “shades_of_grey”, “blue_water”, “pale_dawn”, “blue_essence”, “apple_mapsesque”, “midnight_commander”, “light_monochrome”, “paper”, “retro”, “flat_map”, “cool_grey”
-```{r}
-p <- gmap(lat = 42.37, lng = -83.10, zoom = 11, width = 600, height = 350,
-          map_style = gmap_style("apple_mapsesque")) %>%
-  ly_points(long, lat, data = bld_list_permit, hover = c(address, r), 
-            col = 'purple', alpha = 0.1) %>%
-  x_axis(visible = FALSE) %>%
-  y_axis(visible = FALSE)
-p
-```
-
-Testing GeoSphere package to calculate distance between 2 lat/long coordinates
-```{r}
-#this should be around 1160ft according to Google Maps
-#https://www.google.com/maps/dir/42.3655979,-71.1040001/42.3683169,-71.1017685/@42.3668028,-71.10503,17z/data=!4m2!4m1!3e2
-m_in_ft <- 0.3048
-distGeo(c(-71.1040001,42.3655979), c(-71.1017685,42.3683169))/m_in_ft
-```
-
-Create a function to output the buildings that are within proximity of lat/lon coordinates
-```{r}
-lt <- bld_list_permit$lat[3]
-ln <- bld_list_permit$long[3]
-rangeft <- 1500
-bld_list_permit %>% 
-#  mutate(dt = distGeo(c(ln,lt), c(long, lat))/m_in_ft) %>%
-  filter(!is.na(r)) %>%
-  rowwise() %>%
-  mutate(dt = distGeo(c(ln,lt),c(long,lat))/m_in_ft) %>%
-  filter(dt <= rangeft + r) %>%
-  head(10)
-
-#distGeo(c(ln,lt),c(bld_list$long,bld_list$lat))
-```
 Function to return number of buildings around a particular lat long within a predefined range (by default 500m or 1640ft)
 - input data, for simplicity, should have 4 fields
   - PARCEL_NO: assumed it's a unique identifier for building)
@@ -137,12 +107,9 @@ Function to return number of buildings around a particular lat long within a pre
 ```{r}
 bld_in_range <- function(lt, ln, data, rangeft = 1640, m_in_ft = 0.3048) {
   data %>% 
-    #filter(!is.na(r)) %>%
     rowwise() %>%
     mutate(dist_ft = distGeo(c(ln,lt),c(long,lat))/m_in_ft) %>%
     filter(dist_ft <= rangeft + r) %>%
-    #select(address, dist_ft) %>%
-    #arrange(dist_ft)
     nrow()
 }
 
@@ -150,19 +117,13 @@ indata <- bld_list_permit %>%
   filter(!is.na(r)) %>%
   unique() %>%
   select(address, lat, long, r)
-
-lt <- bld_list_permit$lat[3]
-ln <- bld_list_permit$long[3]
-
-bld_in_range(lt, ln, indata, rangeft = 500)
 ```
 Loading blight violation incidents
 ```{r}
-data_violations <- read_csv(paste(datadir, "detroit-blight-violations.csv", sep="/"))
 head(data_violations)
 ```
 
-Data Violation exploration
+Data Violation exploration, converting first to the right data fields
 ```{r}
 #converting to factors
 cols <- c("AgencyName","ViolationCode","Disposition","PaymentStatus","Void",
@@ -173,16 +134,13 @@ data_violations %<>% mutate_each_(funs(factor(.)),cols)
 cols <- c("FineAmt","AdminFee","LateFee","StateFee","CleanUpCost","JudgmentAmt")
 data_violations %<>% mutate_each_(funs(from_currency(.)),cols)
 
-#converting to dates
+#not converting to dates as the dates in the fields below have weird years
 cols <-c("TicketIssuedDT","HearingDT")
-# to use lubridate, need to figure it out -- 
 #data_violations %<>% mutate_each_(funs(from_currency(.)),cols)
 summary(data_violations)
-#dplyr::glimpse(data_violations)
 ```
 
-Getting the violation codes
-Need to categorize them
+Getting the violation codes, we'll manually categorize them below
 ```{r}
 violCodes <- data_violations %>% 
   select(ViolationCode, ViolDescription) %>%
@@ -206,7 +164,7 @@ viol_list <- data_violations %>%
 head(viol_list)
 ```
 
-What happens with Disposition?
+What happens with Disposition? Well, it seems hat it could be categorized as responsible, not responsible, and pending
 ```{r}
 viol_list %>%
   select(Disposition) %>%
@@ -236,7 +194,6 @@ p <- gmap(lat = 42.37, lng = -83.10, zoom = 11, width = 600, height = 350,
   y_axis(visible = FALSE)
 p
 ```
-
 
 Are there the same number of unique addresses?
 ```{r}
@@ -273,6 +230,18 @@ viol_list_cleaned %<>%
 
 head(viol_list_cleaned)
 ```
+After cleaning, here are the top violations counts per geocoord/address
+```{r}
+viol_list_cleaned %>%
+  select(address_only, lat, long) %>%
+  mutate(geocord = paste(lat,long)) %>%
+  group_by(geocord) %>%
+  summarize(address=last(address_only), lat=last(lat), long=last(long), num_viols_in_geo = n()) %>%
+  arrange(desc(num_viols_in_geo)) %>%
+  select(-geocord) %>%
+  head(30)
+```
+
 Looking at violation codes, it seems there is some common ones, taking the top 20
 ```{r}
 violCodes <- viol_list_cleaned %>% 
@@ -342,6 +311,7 @@ bld_list_viol <- viol_list_cleaned %>%
 
 head(bld_list_viol)
 ```
+
 Adding the violation code counts
 ```{r}
 bld_list_viol %<>%
@@ -351,11 +321,8 @@ colnames(bld_list_viol) <- make.names(colnames(bld_list_viol))
 head(bld_list_viol)
 ```
 
-
-Loading calls to 311, typically complains
+Exploring 311 data
 ```{r}
-data_311 <- read_csv(paste(datadir, "detroit-311.csv", sep="/"))
-
 #converting to factors
 cols <- c("issue_type", "ticket_status")
 data_311 %<>% mutate_each_(funs(factor(.)),cols)
@@ -368,6 +335,7 @@ data_311 %<>% mutate_each_(funs(parse_date_time(.,orders="mdY HMS Op",tz="Americ
 #dplyr::glimpse(data_311)
 summary(data_311)
 ```
+
 There are 23 types of 311 issues, we could extract counts for each
 ```{r}
 types311 <- data_311 %>%
@@ -442,10 +410,12 @@ colnames(bld_list_311) <- make.names(colnames(bld_list_311))
 head(bld_list_311)
 ```
 
-Loading criminal incidents in Detroit
+Exploring criminal incidents in Detroit
 ```{r}
-data_crime <- read_csv(paste(datadir, "detroit-crime.csv", sep="/"))
+head(data_crime)
+```
 
+```{r}
 #converting to factors
 cols <- c("CATEGORY","STATEOFFENSEFILECLASS","PRECINCT","COUNCIL","NEIGHBORHOOD")
 data_crime %<>% mutate_each_(funs(factor(.)),cols)
@@ -488,7 +458,7 @@ bld_list_crime <- data_crime %>%
 head(bld_list_crime)
 ```
 
-Generating features for each issue type as a count per address
+Generating crime features for each issue type as a count per address
 ```{r}
 crime_category_counts <- data_crime %>%
   select(address=ADDRESS, CATEGORY) %>%
@@ -500,7 +470,7 @@ crime_category_counts <- data_crime %>%
 head(crime_category_counts)
 ```
 
-Adding the 311 issue type counts
+Adding the crime category counts
 ```{r}
 bld_list_crime %<>%
   left_join(crime_category_counts, by="address")
@@ -509,66 +479,189 @@ colnames(bld_list_crime) <- make.names(colnames(bld_list_crime))
 head(bld_list_crime)
 ```
 
-Let's join all lat/longs and reduce their precision to 4 digits (~11m accuracy) REF: https://en.wikipedia.org/wiki/Decimal_degrees#Precision
+Prepare a list of coordinates by type of record, at precision of 4 digits (~11m accuracy) REF: https://en.wikipedia.org/wiki/Decimal_degrees#Precision
 ```{r}
-bld_list_coord <- bld_list_311 %>%
-  select(lat, long) %>%
-  bind_rows(select(bld_list_crime, lat, long)) %>%
-  bind_rows(select(bld_list_viol, lat, long)) %>%
-  transmute(lat = round(lat,digits=4), long = round(long,digits=4)) %>%
-  distinct() %>%
-  arrange(desc(lat), desc(long))
+bld_list_coord2 <- bld_list_311 %>%
+  mutate(type = "311") %>%
+  select(type, lat, lon=long, address) %>%
+  bind_rows(select(mutate(bld_list_crime, type="crime"), type, lat, lon=long, address)) %>%
+  bind_rows(select(mutate(bld_list_viol, type="viol"), type, lat, lon=long, address)) %>%
+  mutate(coord=paste(lat,lon,sep=",")) %>%
+  arrange(desc(lat), desc(lon))
   
-bld_list_coord
-```
-```{r}
-lt <- 42.4876
-lg <- -82.8972
-e <- 0.001
-
-bld_list_coord %>%
-  filter(abs(lat-lt)<e)
+bld_list_coord2
 ```
 
-
-Let's reduce the precision to 4 decimal points (~11m in the equator)
+Let's plot all records of 311 calls, blight violations, and crime reports in a map centered in Detroit. The records are grouped by distance. When zooming in, we see that lat/long coordinates that are about +/-0.0002 degrees appart seem to belong to the same location
 ```{r}
-bld_list_311 %<>%
-  mutate(lat = round(lat,digits=4), long = round(long,digits=4)) %>%
-  mutate(coord = paste(lat,long)) %>%
-  unique() %>%
-  arrange(desc(lat), desc(long))
+library(leaflet)
+leaflet() %>% 
+  setView(lat = 42.37, lng = -83.10, zoom = 11) %>% 
+  addTiles(group = "OSM (default)") %>%
+  addMarkers(data = filter(bld_list_coord2,type=="311"), lng = ~lon, lat = ~lat,
+             clusterOptions = markerClusterOptions(), group = "311 calls",
+             popup = ~coord, label = ~type) %>%
+  addMarkers(data = filter(bld_list_coord2,type=="crime"), lng = ~lon, lat = ~lat,
+             clusterOptions = markerClusterOptions(), group = "crime",
+             popup = ~coord, label = ~type) %>%
+  addMarkers(data = filter(bld_list_coord2,type=="viol"), lng = ~lon, lat = ~lat,
+             clusterOptions = markerClusterOptions(), group = "blight viol",
+             popup = ~coord, label = ~type) %>%
+  addLayersControl(
+    overlayGroups = c("311 calls", "crime", "blight viol"),
+    options = layersControlOptions(collapsed = FALSE)
+  )
 
-bld_list_crime %<>%
-  mutate(lat = round(lat,digits=4), long = round(long,digits=4)) %>%
-  mutate(coord = paste(lat,long)) %>%
-  unique() %>%
-  arrange(desc(lat), desc(long))
-
-bld_list_viol %<>%
-  mutate(lat = round(lat,digits=4), long = round(long,digits=4)) %>%
-  mutate(coord = paste(lat,long)) %>%
-  unique() %>%
-  arrange(desc(lat), desc(long))
 ```
 
-Direct join by lat/long coordinates at 4 digit precision (~11m)
+Let's build a list of potential locations to explore by grouping all lat/long coordinates that are around +/-0.0002 degrees appart. This approach yields to 60679 buildings out of 146892 records. 
 ```{r}
-### NOT doing geo_join, it's too slow!
-#bld_list_crime_311_geosmart <- bld_list_crime %>% 
-#  head(100) %>%
-#  geo_join(bld_list_311, by=c("lat", "long"),  max_dist=0.1, unit="km", mode="inner")
+# Allowable error
+e_lat = 0.0002
+e_lon = 0.0004
 
+bld_list_all_filename <- "extracted_bld_list.csv"
+
+# Calculation takes ~30 min, skip it if file above exists to speed up
+if( file.exists(bld_list_all_filename) ) {
+  bld_list_all <- read_csv(bld_list_all_filename)
+
+# file doesn't exists, let's crank the calculation up!
+} else {
+
+  i <- 0
+  out <- data_frame()
+  
+  input <- bld_list_coord2 %>%
+    mutate(coord_assigned = 0)
+  
+  l <- nrow(input)
+  
+  while(l > 0) {
+    input %<>% 
+      filter(coord_assigned != 1)
+    
+    lt <- input[1,]$lat
+    ln <- input[1,]$lon
+    
+    input %<>%
+      mutate(coord_assigned = ifelse( (abs(lon-ln)<=e_lon & abs(lat-lt)<=e_lat), 1, 0) )
+    
+    i <- i+1
+    
+    out <- input %>% 
+      filter(coord_assigned == 1) %>%
+      mutate(bld_id = i, bld_lat = median(lat), bld_lon = median(lon)) %>%
+      bind_rows(out)
+    
+    l <- nrow(input)
+    if(l == 0) break
+    if(i%%100==0) print(paste0(i," iterations ",l," records left"))
+  } 
+  bld_list_all <- out
+  out <- NULL
+  write_csv(bld_list_all, path = bld_list_all_filename)
+}
+```
+
+Let's join these babies
+```{r}
+bld_list_crime <- bld_list_all %>% 
+  filter(type == "crime") %>%
+  select(bld_id, bld_lat, bld_lon, address) %>%
+  left_join(bld_list_crime, by="address") %>% 
+  select(-lat, -long) %>%
+  rename(lat=bld_lat, long=bld_lon)
+
+bld_list_311 <- bld_list_all %>% 
+  filter(type == "311") %>%
+  select(bld_id, bld_lat, bld_lon, address) %>%
+  left_join(bld_list_311, by="address") %>%
+  select(-lat, -long) %>%
+  rename(lat=bld_lat, long=bld_lon)
+
+bld_list_viol <- bld_list_all %>% 
+  filter(type == "viol") %>%
+  select(bld_id, bld_lat, bld_lon, address) %>%
+  left_join(bld_list_viol, by="address") %>%
+  select(-lat, -long) %>%
+  rename(lat=bld_lat, long=bld_lon)
+```
+
+Recalculate summaries at the building level for crime
+```{r}
+tmp <- bld_list_crime %>%
+  select(-address) %>%
+  select(-lat, -long) %>%
+  group_by(bld_id) %>% 
+  summarise_each(funs(sum))
+
+bld_list_crime %<>% 
+  select(bld_id, lat, long) %>% 
+  distinct() %>%
+  left_join(tmp, by="bld_id")
+
+head(bld_list_crime)
+```
+
+Recalculate summaries at the building level for 311
+```{r}
+tmp <- bld_list_311 %>%
+  select(-address) %>%
+  select(-lat, -long, -min_rating, -max_rating, -diff_rating) %>%
+  group_by(bld_id) %>% 
+  summarise_each(funs(sum))
+
+tmp <- bld_list_311 %>% 
+  select(bld_id, min_rating, max_rating) %>%
+  group_by(bld_id) %>% 
+  summarise(min_rating = min(min_rating), max_rating = max(max_rating)) %>%
+  mutate(diff_rating = max_rating - min_rating) %>%
+  left_join(tmp, by="bld_id")
+
+bld_list_311 %<>% 
+  select(bld_id, lat, long) %>% 
+  distinct() %>%
+  left_join(tmp, by="bld_id")
+
+head(bld_list_311)
+```
+
+Recalculate summaries at the building level for blight violations
+```{r}
+tmp <- bld_list_viol %>%
+  select(-address) %>%
+  select(-lat, -long, -max_amt) %>%
+  group_by(bld_id) %>% 
+  summarise_each(funs(sum))
+
+tmp <- bld_list_viol %>% 
+  select(bld_id, max_amt) %>%
+  group_by(bld_id) %>% 
+  summarise(max_amt = max(max_amt)) %>%
+  left_join(tmp, by="bld_id")
+
+bld_list_viol %<>% 
+  select(bld_id, lat, long) %>% 
+  distinct() %>%
+  left_join(tmp, by="bld_id")
+
+head(bld_list_viol)
+```
+
+Direct join by building identifier, bld_id
+```{r}
 bld_list_crime_311_viol <- bld_list_crime %>%
-  full_join(bld_list_311, by = "coord") %>%
-  full_join(bld_list_viol, by = "coord") %>% 
-  select(-address.x, -lat.x, -long.x, -address.y, -lat.y, -long.y, 
-       -address, -lat, -long)
+  full_join(bld_list_311, by = "bld_id") %>%
+  full_join(bld_list_viol, by = "bld_id") 
 
-bld_list_crime_311_viol %<>% separate(coord, c("lat","long"), sep=" ", remove=FALSE) %>%
-  mutate(lat = as.double(lat), long = as.double(long))
+bld_list_crime_311_viol %<>% 
+  mutate(lat = ifelse(is.na(lat),ifelse(is.na(lat.x),lat.y,lat.x),lat)) %>%
+  mutate(long = ifelse(is.na(long),ifelse(is.na(long.x),long.y,long.x),long)) %>%
+  select(-lat.x, -long.x, -lat.y, -long.y) %>%
+  select(bld_id, lat, long, everything()) 
 
-bld_list_crime_311_viol %<>% filter(! is.na(lat))
+head(bld_list_crime_311_viol)
 ```
 
 Adding surrounding statistics, 0.001 ~ 111m
@@ -586,8 +679,9 @@ bld_list_crime_311_viol %<>%
     avg_max_amt_neigh = mean(max_amt)
   ) %>%
   ungroup()
-```
 
+head(bld_list_crime_311_viol)
+```
 
 Taking care of NA's, doing some dummy imputation
 ```{r}
@@ -604,10 +698,11 @@ bld_list_crime_311_viol %<>%
 cols <- c("max_rating", "min_rating", "diff_rating", "max_amt", 
           "max_rating_neigh", "min_rating_neigh", "avg_max_amt_neigh")
 bld_list_crime_311_viol %<>% mutate_each_(funs(ifelse(is.na(.),-1,.)),cols)
+
+head(bld_list_crime_311_viol)
 ```
 
-
-Speeding up version by looking computing distance directly in degrees, 0.0001 ~ 11m ~ 37ft
+Faster function to assign blight by computing distance directly in degrees, 0.0001 ~ 11m ~ 37ft
 ```{r}
 in_blight <- function(lt, ln, data) {
   data %>% 
@@ -620,7 +715,7 @@ indata_degrees <- indata %>%
 ```
 
 
-The mashup results in about 8523 blighted entries, out of 144k total records. 2k blighted entries are potentially overlaps due to lat/long matching
+The mashup results in about 3369 blighted entries, out of 60658 total buildings.
 ```{r}
 modeling_data <- bld_list_crime_311_viol 
 
@@ -637,7 +732,7 @@ Creating dependent variable "condition" as boolean from "nblighted" (this descri
 ```{r}
 modeling_data %<>%
   mutate(condition = factor(if_else(nblighted > 0, "BLIGHTED", "NOT_BLIGHTED"))) %>%
-  select(-coord, -lat, -long, -nblighted, -coord_neigh)
+  select(-bld_id, -lat, -long, -nblighted, -coord_neigh)
 
 table(modeling_data$condition)
 ```
@@ -648,7 +743,7 @@ mod_data_sampled <- modeling_data %>%
 
 mod_data_sampled <- modeling_data %>%
   filter(condition == "NOT_BLIGHTED") %>% 
-  sample_n(9000) %>%
+  sample_n(5500) %>%
   bind_rows(mod_data_sampled)
 
 table(mod_data_sampled$condition)
@@ -751,11 +846,29 @@ Comparing the models across cross-validation resamples, we see a similar perform
 resamps <- resamples(list(glm = glmModel, dtree = dtreeModel, rf = rfModel))
 summary(resamps)
 ```
+Other features
+```{r}
+varcrime <- "num_crime"
+var311 <- paste("min_rating", "max_rating", "diff_rating","num_311",sep = "+")
+varviols <- paste("max_amt","num_viols","num_responsible",sep = "+")
+varneigh <- paste("num_crime_neigh", "num_311_neigh","max_rating_neigh", "min_rating_neigh", 
+              "num_viols_neigh","num_respons_neigh","avg_max_amt_neigh",sep="+")
+var311codes <- paste(codes311, collapse = "+")
+varcrimecodes <- paste(codescrime, collapse = "+")
+varviolcodes <- paste(codesviol, collapse = "+")
 
-The fact that the random forest performance in training and validation sets was similar, eludes that the model in not complex enough. Let's add all the extracted features above in the dtree (about 101).
+f_basic <- as.formula(paste("condition ~ ", paste(varcrime, var311, varviols, sep="+")))
+f_basic_neigh <- as.formula(paste("condition ~ ", paste(varcrime, var311, varviols, varneigh, sep="+")))
+f_all <- as.formula(paste("condition ~ ", paste(varcrime, var311, varviols, varneigh, var311codes, varcrimecodes, varviolcodes, sep="+")))
+```
+
+
+The fact that the random forest performance in training and validation sets was similar, eludes that the model in not complex enough. 
+
+Adding 311 call data and 
 ```{r}
 # decision tree model
-dtreeModel2 <- train(condition ~ .,
+dtreeModel2 <- train(f_basic,
                   data = trainSet,
                   method = "rpart",
                   trControl = ctrl,
@@ -765,11 +878,37 @@ dtreeModel2 <- train(condition ~ .,
 dtreeModel2
 ```
 
-The results in cross-validation didn't show a significant improvement. The validation set also doesn't show major differences.
+Let's add the neighborhood features
 ```{r}
-dtree2Val <- predict(dtreeModel2, newdata = validSet)
-confusionMatrix(dtree2Val, validSet$condition, positive = "BLIGHTED")
+# decision tree model
+dtreeModel3 <- train(f_basic_neigh,
+                  data = trainSet,
+                  method = "rpart",
+                  trControl = ctrl,
+                  metric = "ROC",
+                  na.action=na.exclude
+                  )
+dtreeModel3
 ```
+
+Let's add the all features
+```{r}
+# decision tree model
+dtreeModel4 <- train(f_all,
+                  data = trainSet,
+                  method = "rpart",
+                  trControl = ctrl,
+                  metric = "ROC",
+                  na.action=na.exclude
+                  )
+dtreeModel4
+```
+
+```{r}
+resamps <- resamples(list(dtree_violonly = dtreeModel, dtree_plus311crime = dtreeModel2, dtree_plusneigh = dtreeModel3, dtree_pluscodes = dtreeModel4))
+summary(resamps)
+```
+
 Let's try a random forest with all the variables
 ```{r}
 # random forest model
@@ -781,16 +920,19 @@ rfModel2 <- train(condition ~ .,
                   )
 rfModel2
 ```
+
 ```{r}
 rf2Val <- predict(rfModel2, newdata = validSet)
 confusionMatrix(rf2Val, validSet$condition, positive = "BLIGHTED")
 ```
+
 ```{r}
 rf2varImp <- varImp(rfModel2, scale = FALSE)
 plot(rf2varImp, top=28)
 ```
+Retraining Random Forest with only most important features
 ```{r}
-trainSet2 <- trainSet %>% select(max_amt, num_viols, num_responsible, num_crime, X9.1.36.a., X22.2.88, min_rating, X9.1.81.a., diff_rating, num_311, max_rating, X22.2.88.b., X9.1.43.a.....Dwelling., condition)
+trainSet2 <- trainSet %>% select(max_amt, num_responsible, num_viols, compliance, hazard, num_crime, waste, other, condition)
 # random forest model
 rfModel3 <- train(condition ~ .,
                   data = trainSet2,
@@ -801,39 +943,111 @@ rfModel3 <- train(condition ~ .,
 rfModel3
 ```
 
+#Prepping the data for XGBoost
 ```{r}
-table(trainSet$num_crime>0)
-table(trainSet$num_viols>0)
-table(trainSet$num_311>0)
-table(bld_list_crime_311_viol$num_311>0)
-#bld_list_crime_311_viol %<>% mutate(num_viols = as.integer(num_viols), num_crime = as.integer(num_crime), num_311 = as.integer(num_311))
-bld_list_crime_311_viol %>% filter(num_viols>-1) %>% filter(num_crime>0) %>% filter(num_311>-1)
-summary(bld_list_crime_311_viol)
-```
-Looking at the rate of blight by violation code, "X9.1.45" and "X9.1.43.a.....Dwelling." (over 75%). The former being "Failure of owner to comply with an emergency or imminent danger order of one- or two-family dwelling or building" and "Failure of owner of one- or two-family dwelling to comply with an emergency or imminent danger order concerining an unsafe or unsanitary structure or unlawful occupancy"
-```{r}
-count_violtype_blighted <- trainSet %>% 
-  filter(condition == "BLIGHTED") %>%
-  select(starts_with("X")) %>%
-  colSums()
-
-count_violtype_all <- trainSet %>% 
-  select(starts_with("X")) %>%
-  colSums()
-
-blightrate_by_violtype <- count_violtype_blighted / count_violtype_all
-blightrate_by_violtype
+dtrain <- Matrix::sparse.model.matrix(condition ~ ., data=trainSet)
+deval <- Matrix::sparse.model.matrix(condition ~ ., data=validSet)
 ```
 
+#Trying XGBoost
+#REF = www.jamesmarquezportfolio.com
+```{r}
+grid <- expand.grid(nrounds = c(300, 400, 500, 600),
+                    max_depth = c(3, 5, 7, 9),
+                    eta = c(0.05, 0.1, 0.2, 0.3),
+                    gamma = 1,
+                    colsample_bytree = c(0.5, 1),
+                    min_child_weight = 1,
+                    subsample = 1)
 
-Next steps:
-- why 311 doesn't have much effect? Maybe not enough representation? 
-  - How many 311 records are in modeling data? It's the smallest set (13k records)
-  - And how about violations & crime? Violations had the most records, 73k, crime 56k
-  - Train ensuring the overlap data (inner join), is in the model set
-- investigate crime/311/viol type counts as features (like bag of words)
-- 311: investigate effect of time (e.g., between created and closed, or # tx / unit of time)
+ctrl <- trainControl(method = "cv",
+                     number = 5,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     allowParallel = TRUE )
 
-Other data:
+set.seed(107)
+system.time(xgbTune <- train(x = dtrain,
+                             y = factor(trainSet$condition),
+                             method = "xgbTree",
+                             metric = "ROC",
+                             tuneGrid = grid,
+                             verbose = TRUE,
+                             trControl = ctrl))
+```
+Gradient boosting reaches the best performance in crossvalidation, of 72.6% ROC/AUC, with a 73.9% true positive, and 55.5% true negative rates. The optimal hyperparmeters being: nrounds = 300, max_depth = 3, eta = 0.3, gamma = 1, colsample_bytree = 1, min_child_weight = 1 and subsample = 1.
+```{r}
+xgbTune
+
+ggplot(xgbTune) +
+  theme(legend.position = "top")
+```
+
+```{r}
+trainlab <- trainSet %>%
+  select(condition) %>%
+  mutate(lab = ifelse((condition=="BLIGHTED"),1,0)) %>%
+  select(lab)
+
+param <- list(objective = 'binary:logistic',
+              eval_metric = 'auc',
+              max_depth = 3, 
+              eta = 0.3, 
+              gamma = 1, 
+              colsample_bytree = 1, 
+              min_child_weight = 1,
+              subsample = 1)
+
+set.seed(107)
+system.time(xgb <- xgboost(params = param, 
+                           data = dtrain,
+                           label = trainlab$lab,
+                           nrounds = 300,
+                           print_every_n = 100,
+                           verbose = 1))
+```
+
+
+```{r}
+model <- xgb.dump(xgb, with_stats = TRUE)
+names <- dimnames(dtrain)[[2]]
+importance_matrix <- xgb.importance(names, model = xgb)[0:20]
+xgb.plot.importance(importance_matrix)
+```
+
+Let's check the results in the validation set
+```{r}
+validlab <- validSet %>%
+  select(condition) %>%
+  mutate(lab = ifelse((condition=="BLIGHTED"),1,0)) %>%
+  select(lab)
+
+xgbVal <- predict(xgb, newdata = deval)
+xgbVal.resp <- ifelse(xgbVal > 0.3, 1, 0)
+confusionMatrix(xgbVal.resp, validlab$lab, positive = '1')
+```
+
+Plotting the ROC, we can explore different values of true positive and false positive rates. 
+```{r}
+xgb.pred <- ROCR::prediction(xgbVal, validlab$lab)
+xgb.perf <- ROCR::performance(xgb.pred, "tpr", "fpr")
+
+plot(xgb.perf,
+     avg="threshold",
+     colorize=TRUE,
+     lwd=3,
+     print.cutoffs.at=seq(0, 1, by=0.05),
+     text.adj=c(-0.5, 0.5),
+     text.cex=0.6)
+grid(col="lightgray")
+axis(1, at=seq(0, 1, by=0.1))
+axis(2, at=seq(0, 1, by=0.1))
+abline(v=c(0.1, 0.3, 0.5, 0.7, 0.9), col="lightgray", lty="dotted")
+abline(h=c(0.1, 0.3, 0.5, 0.7, 0.9), col="lightgray", lty="dotted")
+lines(x=c(0, 1), y=c(0, 1), col="black", lty="dotted")
+```
+Other data to explore in the future:
+- Neighboorhood/region
+- Demographic data
 - MLS / Zillow (last time sold, price, # sold houses around)
 - Detroit Parcel data
