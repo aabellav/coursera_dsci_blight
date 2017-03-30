@@ -75,10 +75,19 @@ With all features and subsets based on importance
 * Gradient boosting
 
 ### Evaluation of the best model
-The best model is a gradient boosting model with all the features, with only the top 20 features yields similar performance of 78% AUC in cross-validation and 74-75% AUC in the validation set. 
+The best model is a gradient boosting model with all the features. Selecting the top 20 features yields to similar performance of 78% AUC in cross-validation and 74-75% AUC in the validation set. Below is the confusion matrix for the evaluation set at an optimal operating point of 0.5:
 
 ||Ref Not Blighted|Ref Blighted|
 |-|:-:|:-:|
 |Pred Not Blighted|913|258|
 |Pred Blighted|476|636|
+
+Despite not being very accurate, ~68%, the model can help to reduce the number of buildings to assess for bligth. 
+
+## Future work
+* Include temporal features (e.g., frequency of violations) - some temporal data seem to be noisy (e.g., violation ticked issue time being 01/01/38440) 
+* Use Detroit Parcel data to define the buildings
+* Use Detroit neighboorhood data to calculate local metrics
+* Use demographic data from the CENSUS
+* Use MLS / Zillow (last time sold, price, # sold houses around)
 
