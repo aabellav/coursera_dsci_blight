@@ -8,8 +8,8 @@ output:
 Loading libraries
 ```{r, include=FALSE}
 library(readr)
+#install.packages("magrittr")
 library(magrittr)
-library(tidyr)
 library(plyr)
 library(dplyr)
 library(fuzzyjoin)
