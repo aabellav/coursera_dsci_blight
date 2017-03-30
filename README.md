@@ -3,7 +3,8 @@ Capstone of WashU Coursera: Data Science at Scale
 The detailed code (in R) can be found [in RPubs in this notebook](http://rpubs.com/aabellav/254303)
 
 ## Summary
-This project aimed at exploring data related to Blight in Detroit, and building a predictive model of blight. We generated 101 features from the provided data, and explored multiple stochastic models. Finally, the Gradient Boosting Model seemed to perform best, with a 78.7% AUC in cross-validation, and 75.0% AUC in the validation set.  
+This project aimed at exploring data related to Blight in Detroit, and building a predictive model of blight. We generated 101 features from the provided data, and explored multiple stochastic models. Finally, the Gradient Boosting Model seemed to perform best, with a 78.7% AUC in cross-validation, and 75.0% AUC in the validation set.
+
 ## The Data
 The data used in the project was the following
 * Demolition permits in Detroit, used to define whether a particular building was blighted
@@ -31,10 +32,24 @@ The following steps were
 * Built a lambda function to determine if a building lat/long is within a blight parcel. Blight parcels are defined by a circumference centered at their lat/long and with a radious such as the resulting area is equal to parcel size.
 
 ### Feature engineering
-varcrime <- "num_crime"
-var311 <- paste("min_rating", "max_rating", "diff_rating","num_311",sep = "+")
-varviols <- paste("max_amt","num_viols","num_responsible",sep = "+")
-varneigh <- paste("num_crime_neigh", "num_311_neigh","avg_max_rating_neigh", 
-                  "avg_min_rating_neigh", "num_viols_neigh", "num_respons_neigh", 
-                  "avg_max_amt_neigh", "total_max_amt_neigh",sep="+")
+Basic features at the building level
+* number of blight violations
+* number of 311 calls
+* minimum, maximum of 311 call rating, and their difference
+* number of crime reports
+* number of crime reports with determination being "responsible"
+* max fine amount for all crime records at a particular building location (from JudgmentAmt)
+
+
+Surrounding features, around 111m of each building:
+* number of blight violations
+* number of 311 calls
+* average of max rating of surrounding 311 calls
+* average of min rating of surrounding 311 calls
+* number of crime reports
+* average of max fine amounts of surrounding crime reports
+* total sum of max fine amounts of surrounding crime reports
+
+Counts of type of crime, violations and 311 calls
+* 
 
