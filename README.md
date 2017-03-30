@@ -32,6 +32,8 @@ The following steps were
 * Built a lambda function to determine if a building lat/long is within a blight parcel. Blight parcels are defined by a circumference centered at their lat/long and with a radious such as the resulting area is equal to parcel size.
 
 ### Feature engineering
+Generated a total of 101 features
+
 Basic features at the building level
 * number of blight violations
 * number of 311 calls
@@ -52,4 +54,31 @@ Surrounding features, around 111m of each building:
 
 Counts of type of crime, violations and 311 calls
 * 
+* 23 types of 311 issues
+* For violations, reduced from 313 violation codes to 12 groups
+
+
+### Data modelling
+Explored different models and sets of features
+
+With number of violations only
+* Linear model
+* Decision Tree
+* Random forest
+
+With combination of features
+* Decision tree
+* Random forest
+
+With all features and subsets based on importance
+* Random forest
+* Gradient boosting
+
+### Evaluation of the best model
+The best model is a gradient boosting model with all the features, with only the top 20 features yields similar performance of 78% AUC in cross-validation and 74-75% AUC in the validation set. 
+
+||Ref Not Blighted|Ref Blighted|
+|-|:-:|:-:|
+|Pred Not Blighted|913|258|
+|Pred Blighted|476|636|
 
