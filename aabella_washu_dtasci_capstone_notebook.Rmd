@@ -33,7 +33,7 @@ datadir <- "../data"
 list.files(datadir)
 ```
 
-Loading all data
+First we load all data
 ```{r, include=FALSE}
 data_permits <- read_tsv(paste(datadir, "detroit-demolition-permits.tsv", sep="/"))
 data_violations <- read_csv(paste(datadir, "detroit-blight-violations.csv", sep="/"))
@@ -64,7 +64,7 @@ cols <-c("PERMIT_APPLIED","PERMIT_ISSUED","PERMIT_EXPIRES")
 data_permits %<>% mutate_each_(funs(parse_date_time(.,orders="mdy",tz="America/Detroit")),cols)
 summary(data_permits)
 ```
-Extracting building lat longs
+Extracting building lat longs from "site_location" variable
 ```{r}
 data_permits %<>%
   #filter out permits that have no lat/long
@@ -75,7 +75,7 @@ data_permits %<>%
   mutate(address_only = sub("([^\\(]+)\\([0-9\\.\\-]+,.*","\\1", site_location))
 ```
 
-Create a list of buildings doing some magic to remove those entries whose lat/long stdev is larger than 10e-4 (~11m). Not much gets removed actually, but it's consistent with steps below. Removed those records whose address was a lat/long (only ~40).
+Create a list of buildings doing some magic to remove those entries whose lat/long stdev is larger than 10e-4 (~11m). Not much gets removed actually, but it's consistent with steps below. Removed those records whose address was missing (only ~40).
 ```{r}
 bld_list_permit <- data_permits %>%
   mutate(r = sqrt(PARCEL_SIZE/pi) ) %>%
@@ -84,40 +84,41 @@ bld_list_permit <- data_permits %>%
   arrange(address, desc(PERMIT_ISSUED)) %>%
   group_by(address) %>%
   mutate(sdlat=sd(lat), sdlong=sd(long)) %>%
-  filter((sdlat<10e-4 && sdlong<10e-4) || (is.na(sdlat) && is.na(sdlong))) %>%
-  filter(long > -83.3 && long < -82.8) %>%
-  filter(lat > 42.2 && lat < 42.5) %>%
+  filter((sdlat<10e-4 & sdlong<10e-4) | (is.na(sdlat) | is.na(sdlong))) %>%
+  filter(long > -83.3 & long < -82.8) %>%
+  filter(lat > 42.2 & lat < 42.5) %>%
   arrange(PERMIT_ISSUED) %>%
   summarise(n_permits=n(), last_permit=last(PERMIT_ISSUED), 
             lat=median(lat), long=median(long), r=last(r))
 head(bld_list_permit)
 ```
 
-Function to return number of buildings around a particular lat long within a predefined range (by default 500m or 1640ft)
-- input data, for simplicity, should have 4 fields
-  - PARCEL_NO: assumed it's a unique identifier for building)
-  - lat: building lat coordinate
-  - long: building long coordinate
+Function to return number of bligthed records for a specific lat/long coordinate. This function is used to assign blight computing the distance directly in degrees 0.0001 ~ 11m ~ 37ft, which is faster than using a built in function such as distGeo.
+
+- data, a dataframe containing all demolitions permits as a proxy for assigning blight. This dataframe includes:
+  - lat: lat coordinate of demolition permit
+  - long: long coordinate of demolition permit
   - r: estimated building's area radious (when area is approximated to circle)
 - the other input variables are:
   - lt: target lat coordinate
   - ln: target long coordinate
-  - rangeft (optional, range in feet to look buildings around target lat/long)
-  - m_in_ft (option)
 ```{r}
-bld_in_range <- function(lt, ln, data, rangeft = 1640, m_in_ft = 0.3048) {
+in_blight <- function(lt, ln, data) {
   data %>% 
-    rowwise() %>%
-    mutate(dist_ft = distGeo(c(ln,lt),c(long,lat))/m_in_ft) %>%
-    filter(dist_ft <= rangeft + r) %>%
+    filter(sqrt((lat-lt)^2+(long-ln)^2)<rdegr+0.0001) %>%
     nrow()
 }
 
+#creating the dataframe of bligthed buildings
 indata <- bld_list_permit %>% 
   filter(!is.na(r)) %>%
   unique() %>%
   select(address, lat, long, r)
+
+indata_degrees <- indata %>%
+  mutate(rdegr = 0.0001/37 * r)
 ```
+
 Loading blight violation incidents
 ```{r}
 head(data_violations)
@@ -215,7 +216,7 @@ viol_list_cleaned %<>%
   group_by(address_only) %>%
   mutate(num_viols_in_address = n())
 
-head(viol_list_cleaned)
+nrow(viol_list_cleaned)
 ```
 
 It seems that about 70k entries have different number of violations when looking by address or lat/long, being 35k unique records duplicated, so getting rid of them
@@ -228,7 +229,7 @@ viol_list_cleaned %<>%
   ungroup() %>%
   unique() 
 
-head(viol_list_cleaned)
+nrow(viol_list_cleaned)
 ```
 After cleaning, here are the top violations counts per geocoord/address
 ```{r}
@@ -242,7 +243,7 @@ viol_list_cleaned %>%
   head(30)
 ```
 
-Looking at violation codes, it seems there is some common ones, taking the top 20
+There are 313 violation codes, some of them being more frequent than others
 ```{r}
 violCodes <- viol_list_cleaned %>% 
 #  mutate(ViolationCode = sub("^([0-9]+-[0-9]+)-.*$","\\1",ViolationCode)) %>%
@@ -251,7 +252,7 @@ violCodes <- viol_list_cleaned %>%
 
 violCodes
 ```
-Manually categorized 
+Categorizing them semantically manually, we reduce them to 12 groups, n being the number of categories mapped to each corresponding group
 ```{r}
 violCodes_manual_categorization <-
   read_csv("violCodes_manual_categorization.csv")
@@ -260,9 +261,9 @@ violCodes_manual_categorization %<>%
   mutate(ViolGroup=as.factor(ViolGroup),
          ViolationCode=as.factor(ViolationCode))
 
-violCodes_manual_categorization
+violCodes_manual_categorization %>% group_by(ViolGroup) %>% tally(sort = TRUE)
 ```
-Adding a grouping factor for violation categories, ViolGroup
+We adding the grouping factor for violation categories, ViolGroup
 ```{r}
 viol_list_cleaned %<>% 
   left_join(violCodes_manual_categorization,by="ViolationCode")
@@ -270,12 +271,8 @@ viol_list_cleaned %<>%
 #Some codes had no description, to prevent to NAs, grouping them to other
 viol_list_cleaned[which(is.na(viol_list_cleaned$ViolGroup)),]$ViolGroup <- "other"
 
-#viol_list_cleaned %<>%
-#  mutate(ViolGroup = ifelse(is.na(ViolGroup),"other",ViolGroup))
-
 head(viol_list_cleaned)
 ```
-
 
 Expand ViolGroup counts as separate features
 ```{r}
@@ -295,16 +292,17 @@ Getting a list of buildings, the grouping wouldn't be necessary as there is a on
 bld_list_viol <- viol_list_cleaned %>%
   select(address=address_only, lat, long, ViolationCode, Disposition, 
          JudgmentAmt, PaymentStatus) %>%
-  group_by(address, ViolationCode) %>%
+  filter(long > -83.3 & long < -82.8) %>%
+  filter(lat > 42.2 & lat < 42.5) %>%
+  mutate(Disposition = ifelse(grepl("^Responsible", Disposition),"Responsible","Not Responsible or Pending")) %>%
+  group_by(address) %>%
+  mutate(sdlat=sd(lat), sdlong=sd(long)) %>%
+  filter((sdlat<10e-4 & sdlong<10e-4) | (is.na(sdlat) | is.na(sdlong))) %>%
   group_by(address, Disposition) %>%
   mutate(num_disposition = n()) %>% 
   group_by(address) %>%
   mutate(num_viols = n(), max_amt = max(JudgmentAmt)) %>%
-  mutate(sdlat=sd(lat), sdlong=sd(long)) %>%
-  filter(grepl("^Responsible", Disposition)) %>%
-  filter((sdlat<10e-4 && sdlong<10e-4) || (is.na(sdlat) && is.na(sdlong))) %>%
-  filter(long > -83.3 && long < -82.8) %>%
-  filter(lat > 42.2 && lat < 42.5) %>%
+  filter(Disposition == "Responsible") %>%
   summarise(lat=median(lat), long=median(long), num_viols = last(num_viols), 
             num_responsible = last(num_disposition), max_amt =last(max_amt)) %>%
   unique() 
@@ -380,15 +378,15 @@ data_311 %>%
   arrange(desc(num_city))
 ```
 
-Grouping by address, it seems there are multiple lat/longs per address, removing those entries that have a lat/long STDEV larger than 10e-4 (~11m)
+Grouping by address, it seems there are multiple lat/longs per address, removing those entries that have a lat/long STDEV larger than 10e-4 (~11m), removes 62 entries.
 ```{r}
 bld_list_311 <- data_311 %>%
   select(address, lat, long=lng, rating, type311 = issue_type, rating) %>%
+  filter(long > -83.3 & long < -82.8) %>%
+  filter(lat > 42.2 & lat < 42.5) %>%
   group_by(address) %>%
   mutate(sdlat=sd(lat), sdlong=sd(long)) %>%
-  filter((sdlat<10e-4 && sdlong<10e-4) || (is.na(sdlat) && is.na(sdlong))) %>%
-  filter(long > -83.3 && long < -82.8) %>%
-  filter(lat > 42.2 && lat < 42.5) %>%
+  filter((sdlat<10e-4 & sdlong<10e-4) | (is.na(sdlat) | is.na(sdlong))) %>%
   summarize(lat=median(lat), long=median(long), num_311 = n(), max_rating = max(rating), min_rating=min(rating), diff_rating = max(rating) - min(rating)) %>%
   unique()
 
@@ -447,11 +445,11 @@ Grouping by address, it seems there are multiple lat/longs per address, and abou
 ```{r}
 bld_list_crime <- data_crime %>%
   select(address=ADDRESS, lat=LAT, long=LON, typecrime = CATEGORY) %>%
+  filter(long > -83.3 & long < -82.8) %>%
+  filter(lat > 42.2 & lat < 42.5) %>%
   group_by(address) %>%
   mutate(sdlat=sd(lat), sdlong=sd(long)) %>%
-  filter((sdlat<10e-4 && sdlong<10e-4) || (is.na(sdlat) && is.na(sdlong))) %>%
-  filter(long > -83.3 && long < -82.8) %>%
-  filter(lat > 42.2 && lat < 42.5) %>%
+  filter((sdlat<10e-4 & sdlong<10e-4) | (is.na(sdlat) | is.na(sdlong))) %>%
   summarize(lat=median(lat), long=median(long), num_crime = n()) %>%
   unique()
 
@@ -481,7 +479,7 @@ head(bld_list_crime)
 
 Prepare a list of coordinates by type of record, at precision of 4 digits (~11m accuracy) REF: https://en.wikipedia.org/wiki/Decimal_degrees#Precision
 ```{r}
-bld_list_coord2 <- bld_list_311 %>%
+bld_list_coord <- bld_list_311 %>%
   mutate(type = "311") %>%
   select(type, lat, lon=long, address) %>%
   bind_rows(select(mutate(bld_list_crime, type="crime"), type, lat, lon=long, address)) %>%
@@ -489,26 +487,33 @@ bld_list_coord2 <- bld_list_311 %>%
   mutate(coord=paste(lat,lon,sep=",")) %>%
   arrange(desc(lat), desc(lon))
   
-bld_list_coord2
+bld_list_coord
 ```
 
 Let's plot all records of 311 calls, blight violations, and crime reports in a map centered in Detroit. The records are grouped by distance. When zooming in, we see that lat/long coordinates that are about +/-0.0002 degrees appart seem to belong to the same location
 ```{r}
 library(leaflet)
+
+iconurl <- "https://docs.google.com/drawings/d/11vcxQDH5DQstHFuUf0VhoXoWFx5b8elfZseXPLcbsmE/pub?w=50&h=50"
+
 leaflet() %>% 
   setView(lat = 42.37, lng = -83.10, zoom = 11) %>% 
   addTiles(group = "OSM (default)") %>%
-  addMarkers(data = filter(bld_list_coord2,type=="311"), lng = ~lon, lat = ~lat,
+  addMarkers(data = filter(bld_list_coord,type=="311"), lng = ~lon, lat = ~lat,
              clusterOptions = markerClusterOptions(), group = "311 calls",
              popup = ~coord, label = ~type) %>%
-  addMarkers(data = filter(bld_list_coord2,type=="crime"), lng = ~lon, lat = ~lat,
+  addMarkers(data = filter(bld_list_coord,type=="crime"), lng = ~lon, lat = ~lat,
              clusterOptions = markerClusterOptions(), group = "crime",
              popup = ~coord, label = ~type) %>%
-  addMarkers(data = filter(bld_list_coord2,type=="viol"), lng = ~lon, lat = ~lat,
+  addMarkers(data = filter(bld_list_coord,type=="viol"), lng = ~lon, lat = ~lat,
              clusterOptions = markerClusterOptions(), group = "blight viol",
              popup = ~coord, label = ~type) %>%
+  addMarkers(data = bld_list_permit, lng = ~long, lat = ~lat, 
+             clusterOptions = markerClusterOptions(), group = "demolition", 
+             popup = ~address, label = "demolition",
+             icon = list(iconUrl = iconurl, iconsize = c(1,1))) %>%
   addLayersControl(
-    overlayGroups = c("311 calls", "crime", "blight viol"),
+    overlayGroups = c("311 calls", "crime", "blight viol","demolition"),
     options = layersControlOptions(collapsed = FALSE)
   )
 
@@ -518,9 +523,9 @@ Let's build a list of potential locations to explore by grouping all lat/long co
 ```{r}
 # Allowable error
 e_lat = 0.0002
-e_lon = 0.0004
+e_lon = 0.0002
 
-bld_list_all_filename <- "extracted_bld_list.csv"
+bld_list_all_filename <- "extracted_bld_list_elat2-elon2.csv"
 
 # Calculation takes ~30 min, skip it if file above exists to speed up
 if( file.exists(bld_list_all_filename) ) {
@@ -532,7 +537,7 @@ if( file.exists(bld_list_all_filename) ) {
   i <- 0
   out <- data_frame()
   
-  input <- bld_list_coord2 %>%
+  input <- bld_list_coord %>%
     mutate(coord_assigned = 0)
   
   l <- nrow(input)
@@ -667,16 +672,17 @@ head(bld_list_crime_311_viol)
 Adding surrounding statistics, 0.001 ~ 111m
 ```{r}
 bld_list_crime_311_viol %<>% 
-  mutate(coord_neigh = paste(round(lat,digits=3),round(lat,digits=3))) %>%
+  mutate(coord_neigh = paste(round(lat,digits=3),round(long,digits=3))) %>%
   group_by(coord_neigh) %>%
   mutate(
     num_crime_neigh = sum(num_crime),
     num_311_neigh = sum(num_311),
-    max_rating_neigh = max(max_rating),
-    min_rating_neigh = min(min_rating),
+    avg_max_rating_neigh = mean(max_rating),
+    avg_min_rating_neigh = mean(min_rating),
     num_viols_neigh = sum(num_viols),
     num_respons_neigh = sum(num_responsible),
-    avg_max_amt_neigh = mean(max_amt)
+    avg_max_amt_neigh = mean(max_amt),
+    total_max_amt_neigh = sum(max_amt)
   ) %>%
   ungroup()
 
@@ -690,32 +696,22 @@ codes311 <- make.names(unlist(lapply(types311$issue_type, as.character)))
 codescrime <- make.names(unlist(lapply(crime_categories$CATEGORY, as.character)))
 
 cols <- c("num_crime", "num_311", "num_viols", "num_responsible",
-          "num_crime_neigh", "num_311_neigh", "num_viols_neigh", "num_respons_neigh")
+          "num_crime_neigh", "num_311_neigh", "num_viols_neigh", 
+          "num_respons_neigh", "total_max_amt_neigh")
 cols <- c(cols, codesviol, codes311, codescrime)
 bld_list_crime_311_viol %<>% 
   mutate_each_(funs(ifelse(is.na(.),0,.)),cols)
 
 cols <- c("max_rating", "min_rating", "diff_rating", "max_amt", 
-          "max_rating_neigh", "min_rating_neigh", "avg_max_amt_neigh")
+          "avg_max_rating_neigh", "avg_min_rating_neigh", "avg_max_amt_neigh")
 bld_list_crime_311_viol %<>% mutate_each_(funs(ifelse(is.na(.),-1,.)),cols)
 
-head(bld_list_crime_311_viol)
+#Let's print the columns that still contain NA's, if character(0) then we are good!
+out <- colnames(bld_list_crime_311_viol)[colSums(is.na(bld_list_crime_311_viol)) > 0]
+ifelse(length(out)==0,print("No NA is left :)"),out)
 ```
 
-Faster function to assign blight by computing distance directly in degrees, 0.0001 ~ 11m ~ 37ft
-```{r}
-in_blight <- function(lt, ln, data) {
-  data %>% 
-    filter(sqrt((lat-lt)^2+(long-ln)^2)<rdegr+0.0001) %>%
-    nrow()
-}
-
-indata_degrees <- indata %>%
-  mutate(rdegr = 0.0001/37 * r)
-```
-
-
-The mashup results in about 3369 blighted entries, out of 60658 total buildings.
+The mashup results in about 4210 blighted entries, out of 82163 total buildings.
 ```{r}
 modeling_data <- bld_list_crime_311_viol 
 
@@ -757,12 +753,15 @@ testSet <- mod_data_sampled[inTest,]
 modelSet <- mod_data_sampled[-inTest,]
 table(testSet$condition)
 ```
-Creating a training and validation data sets for model training and validation, the training set is about 7.7k records
+Creating a training and validation data sets for model training and validation, the training set is about 8.4k records
 ```{r}
 set.seed(107)
 inValid <- createDataPartition(y=modelSet$condition, p=0.15, list=FALSE)
 trainSet <- mod_data_sampled[-inValid,]
 validSet <- mod_data_sampled[inValid,]
+#we are actually using the validation set as a testset, so adding them together to 
+#have a better performance estimate, we'll use cross-validation to choose the best model
+validSet %<>% bind_rows(testSet)
 table(trainSet$condition)
 ```
 As for the validation set, it is about 1.2k records
@@ -776,7 +775,7 @@ p <- figure(width = 600, height = 350) %>%
   ly_hist(num_viols, data = trainSet[which(trainSet$condition == "BLIGHTED"),], color = "red", alpha = 0.25, freq = F, breaks = 25) 
 p
 ```
-Let's train a general linear model (GLM) with 5-fold cross-validation trying to predict the bligth condition only by the number of violations reported in the coordinate, which yields 69.9% AUC on the ROC, 88% true positive, but 73% false positives. 
+Let's train a general linear model (GLM) with 5-fold cross-validation trying to predict the bligth condition only by the number of violations reported in the coordinate, which yields 72.3% AUC on the ROC, 84.2% true positive, but 37.7% true negative rates. 
 ```{r}
 # 5 fold cross-validation, 1 repetition
 ctrl <- trainControl(method = "repeatedcv",
@@ -795,13 +794,8 @@ glmModel <- train(condition ~ num_viols,
                   )
 glmModel
 ```
-Let's check the results in the validation set
-```{r}
-glmVal <- predict(glmModel, newdata = validSet)
-confusionMatrix(glmVal, validSet$condition, positive = "BLIGHTED")
-```
 
-A decision tree has a similar performance, 68.8% AUC on ROC for cross-validation
+A decision tree has a similar performance, 71.8% AUC on ROC for cross-validation, but at a more balanced operating point, with 65.0% true positive and 68.7% true negative.
 ```{r}
 # decision tree model
 dtreeModel <- train(condition ~ num_viols,
@@ -813,13 +807,7 @@ dtreeModel <- train(condition ~ num_viols,
 dtreeModel
 ```
 
-Let's check the results in the validation set
-```{r}
-dtreeVal <- predict(dtreeModel, newdata = validSet)
-confusionMatrix(dtreeVal, validSet$condition, positive = "BLIGHTED")
-```
-
-A random forest yields slighlty lower resuts, with an 66.6% AUC on ROC
+A random forest yields slighlty lower resuts, with an 71.0% AUC on ROC, but also at a balanced operating point, 65.5% true positive, and 68.0% true negative
 ```{r}
 # random forest model
 rfModel <- train(condition ~ num_viols,
@@ -830,29 +818,21 @@ rfModel <- train(condition ~ num_viols,
                   )
 rfModel
 ```
-Let's check the results in the training set
-```{r}
-rfVal <- predict(rfModel, newdata = trainSet)
-confusionMatrix(rfVal, trainSet$condition, positive = "BLIGHTED")
-```
 
-Let's check the results in the validation set
-```{r}
-rfVal <- predict(rfModel, newdata = validSet)
-confusionMatrix(rfVal, validSet$condition, positive = "BLIGHTED")
-```
-Comparing the models across cross-validation resamples, we see a similar performance in terms of ROC. 
+Comparing the models across cross-validation resamples, we see a similar performance in terms of ROC. The GLM seems to achieve the highest true positive, but at a cost of a low true negative. 
 ```{r}
 resamps <- resamples(list(glm = glmModel, dtree = dtreeModel, rf = rfModel))
 summary(resamps)
 ```
-Other features
+Other variables/features:
 ```{r}
 varcrime <- "num_crime"
 var311 <- paste("min_rating", "max_rating", "diff_rating","num_311",sep = "+")
 varviols <- paste("max_amt","num_viols","num_responsible",sep = "+")
-varneigh <- paste("num_crime_neigh", "num_311_neigh","max_rating_neigh", "min_rating_neigh", 
-              "num_viols_neigh","num_respons_neigh","avg_max_amt_neigh",sep="+")
+varneigh <- paste("num_crime_neigh", "num_311_neigh","avg_max_rating_neigh", 
+                  "avg_min_rating_neigh", "num_viols_neigh", "num_respons_neigh", 
+                  "avg_max_amt_neigh", "total_max_amt_neigh",sep="+")
+
 var311codes <- paste(codes311, collapse = "+")
 varcrimecodes <- paste(codescrime, collapse = "+")
 varviolcodes <- paste(codesviol, collapse = "+")
@@ -860,12 +840,14 @@ varviolcodes <- paste(codesviol, collapse = "+")
 f_basic <- as.formula(paste("condition ~ ", paste(varcrime, var311, varviols, sep="+")))
 f_basic_neigh <- as.formula(paste("condition ~ ", paste(varcrime, var311, varviols, varneigh, sep="+")))
 f_all <- as.formula(paste("condition ~ ", paste(varcrime, var311, varviols, varneigh, var311codes, varcrimecodes, varviolcodes, sep="+")))
+f_all_noneigh <- as.formula(paste("condition ~ ", paste(varcrime, var311, varviols, var311codes, varcrimecodes, varviolcodes, sep="+")))
+
 ```
 
 
 The fact that the random forest performance in training and validation sets was similar, eludes that the model in not complex enough. 
 
-Adding 311 call data and 
+Adding 311 call and crime data, yields to a slightly better AUC of 72.0% (from 71.8%)
 ```{r}
 # decision tree model
 dtreeModel2 <- train(f_basic,
@@ -878,7 +860,7 @@ dtreeModel2 <- train(f_basic,
 dtreeModel2
 ```
 
-Let's add the neighborhood features
+Adding the neighborhood features seems to drop the performance slightly to 71.4% AUC (from 72.0% above)
 ```{r}
 # decision tree model
 dtreeModel3 <- train(f_basic_neigh,
@@ -891,7 +873,7 @@ dtreeModel3 <- train(f_basic_neigh,
 dtreeModel3
 ```
 
-Let's add the all features
+Adding all features slight worses the performance to 70.8%AUC
 ```{r}
 # decision tree model
 dtreeModel4 <- train(f_all,
@@ -903,13 +885,25 @@ dtreeModel4 <- train(f_all,
                   )
 dtreeModel4
 ```
-
+Removing the neighborhood features from all brings the performance back up slightly to 71.8% AUC
 ```{r}
-resamps <- resamples(list(dtree_violonly = dtreeModel, dtree_plus311crime = dtreeModel2, dtree_plusneigh = dtreeModel3, dtree_pluscodes = dtreeModel4))
+# decision tree model
+dtreeModel5 <- train(f_all_noneigh,
+                  data = trainSet,
+                  method = "rpart",
+                  trControl = ctrl,
+                  metric = "ROC",
+                  na.action=na.exclude
+                  )
+dtreeModel5
+```
+Comparing the models:
+```{r}
+resamps <- resamples(list(dtree_violonly = dtreeModel, dtree_plus311crime = dtreeModel2, dtree_plusneigh = dtreeModel3, dtree_pluscodes = dtreeModel4, dtree_all_minusneigh = dtreeModel5))
 summary(resamps)
 ```
 
-Let's try a random forest with all the variables. It seems to improve the performance to 71.8% AUC on ROC, with 92% TP, and 80% FP
+Let's try a random forest with all the variables. Being a more complex model, it seems to reach to a new best performance of 73.2% AUC on ROC (1.2% better than the best dtree), with 61.8% True Positive (TP), and 73.9% True Negative (TN)
 ```{r}
 # random forest model
 rfModel2 <- train(condition ~ .,
@@ -922,17 +916,12 @@ rfModel2
 ```
 
 ```{r}
-rf2Val <- predict(rfModel2, newdata = validSet)
-confusionMatrix(rf2Val, validSet$condition, positive = "BLIGHTED")
-```
-
-```{r}
 rf2varImp <- varImp(rfModel2, scale = FALSE)
 plot(rf2varImp, top=28)
 ```
-Retraining Random Forest with only most important features
+Retraining Random Forest with only most important features. Using the top 17 features, the performance drops 0.01% to 72.9% AUC (compared to the RF model with 101 features)
 ```{r}
-trainSet2 <- trainSet %>% select(max_amt, num_responsible, num_viols, compliance, hazard, num_crime, waste, other, condition)
+trainSet2 <- trainSet %>% select(num_viols, max_amt, num_responsible, compliance, hazard, num_crime, waste, other, num_respons_neigh, total_max_amt_neigh, num_viols_neigh, avg_max_amt_neigh, diff_rating, num_crime_neigh, min_rating, num_311, max_rating, condition)
 # random forest model
 rfModel3 <- train(condition ~ .,
                   data = trainSet2,
@@ -943,14 +932,15 @@ rfModel3 <- train(condition ~ .,
 rfModel3
 ```
 
-#Prepping the data for XGBoost
+We'll try also gradient boosting. Let's get started prepping the data for XGBoost
 ```{r}
 dtrain <- Matrix::sparse.model.matrix(condition ~ ., data=trainSet)
 deval <- Matrix::sparse.model.matrix(condition ~ ., data=validSet)
 ```
 
-#Trying XGBoost
-#REF = www.jamesmarquezportfolio.com
+Training and cross-validation of GBM with XGBoost
+Kudos to James Marquez for the awesome XGBoost recipe
+See here: www.jamesmarquezportfolio.com
 ```{r}
 grid <- expand.grid(nrounds = c(300, 400, 500, 600),
                     max_depth = c(3, 5, 7, 9),
@@ -975,14 +965,14 @@ system.time(xgbTune <- train(x = dtrain,
                              verbose = TRUE,
                              trControl = ctrl))
 ```
-Gradient boosting reaches the best performance in crossvalidation, of 72.6% ROC/AUC, with a 73.9% true positive, and 55.5% true negative rates. The optimal hyperparmeters being: nrounds = 300, max_depth = 3, eta = 0.3, gamma = 1, colsample_bytree = 1, min_child_weight = 1 and subsample = 1.
+Gradient boosting reaches the best performance in crossvalidation, of 73.5% ROC/AUC, with a 63.6% true positive, and 71.2% true negative rates. The optimal hyperparmeters being: nrounds = 300, max_depth = 3, eta = 0.05, gamma = 1, colsample_bytree = 1, min_child_weight = 1 and subsample = 1.
 ```{r}
 xgbTune
 
 ggplot(xgbTune) +
   theme(legend.position = "top")
 ```
-
+Training a GBM with the best parameters, yields to 78.7% AUC 
 ```{r}
 trainlab <- trainSet %>%
   select(condition) %>%
@@ -992,7 +982,7 @@ trainlab <- trainSet %>%
 param <- list(objective = 'binary:logistic',
               eval_metric = 'auc',
               max_depth = 3, 
-              eta = 0.3, 
+              eta = 0.05, 
               gamma = 1, 
               colsample_bytree = 1, 
               min_child_weight = 1,
@@ -1006,16 +996,15 @@ system.time(xgb <- xgboost(params = param,
                            print_every_n = 100,
                            verbose = 1))
 ```
-
-
+Below is a plot of feature importance
 ```{r}
 model <- xgb.dump(xgb, with_stats = TRUE)
 names <- dimnames(dtrain)[[2]]
-importance_matrix <- xgb.importance(names, model = xgb)[0:20]
+importance_matrix <- xgb.importance(names, model = xgb)[0:30]
 xgb.plot.importance(importance_matrix)
 ```
 
-Let's check the results in the validation set
+Plotting the ROC, we can explore different values of true positive and false positive rates. 
 ```{r}
 validlab <- validSet %>%
   select(condition) %>%
@@ -1023,14 +1012,13 @@ validlab <- validSet %>%
   select(lab)
 
 xgbVal <- predict(xgb, newdata = deval)
-xgbVal.resp <- ifelse(xgbVal > 0.3, 1, 0)
-confusionMatrix(xgbVal.resp, validlab$lab, positive = '1')
-```
 
-Plotting the ROC, we can explore different values of true positive and false positive rates. 
-```{r}
 xgb.pred <- ROCR::prediction(xgbVal, validlab$lab)
 xgb.perf <- ROCR::performance(xgb.pred, "tpr", "fpr")
+auc <- ROCR::performance(xgb.pred,"auc")
+auc <- unlist(slot(auc, "y.values"))
+auc<-round(auc, digits = 3)
+auct <- paste(c("AUC  = "),auc,sep="")
 
 plot(xgb.perf,
      avg="threshold",
@@ -1045,7 +1033,18 @@ axis(2, at=seq(0, 1, by=0.1))
 abline(v=c(0.1, 0.3, 0.5, 0.7, 0.9), col="lightgray", lty="dotted")
 abline(h=c(0.1, 0.3, 0.5, 0.7, 0.9), col="lightgray", lty="dotted")
 lines(x=c(0, 1), y=c(0, 1), col="black", lty="dotted")
+
+#adding min/max AUC in the plot
+legend(0.5,0.5,c(auct),border="white",cex=1.2,box.col = "white")
 ```
+
+Let's check the results in the validation set for the optimal operating point, around 0.47 yields to 74.7% TP and 63.9% TN
+```{r}
+xgbVal <- predict(xgb, newdata = deval)
+xgbVal.resp <- ifelse(xgbVal > 0.5, 1, 0)
+confusionMatrix(xgbVal.resp, validlab$lab, positive = '1')
+```
+
 Other data to explore in the future:
 - Neighboorhood/region
 - Demographic data
